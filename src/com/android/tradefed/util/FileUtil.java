@@ -32,6 +32,8 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
@@ -387,52 +389,54 @@ public class FileUtil {
     }
 
     /**
-     * A helper method that hardlinks a file to another file
+     * A helper method that hardlinks a file to another file. Fallback to copy in case of cross
+     * partition linking.
      *
      * @param origFile the original file
      * @param destFile the destination file
      * @throws IOException if failed to hardlink file
      */
     public static void hardlinkFile(File origFile, File destFile) throws IOException {
-        // `ln src dest` will create a hardlink (note: not `ln -s src dest`, which creates symlink)
-        // note that this will fail across filesystem boundaries
-        // FIXME: should probably just fall back to normal copy if this fails
-        CommandResult result = linkFile(origFile, destFile, false);
-        if (!result.getStatus().equals(CommandStatus.SUCCESS)) {
-            throw new IOException(String.format(
-                    "Failed to hardlink %s to %s.  Across filesystem boundary?",
-                    origFile.getAbsolutePath(), destFile.getAbsolutePath()));
+        try {
+            Files.createLink(Paths.get(destFile.toURI()), Paths.get(origFile.toURI()));
+        } catch (FileSystemException e) {
+            if (e.getMessage().contains("Invalid cross-device link")) {
+                CLog.d("Hardlink failed: '%s', falling back to copy.", e.getMessage());
+                copyFile(origFile, destFile);
+                return;
+            }
+            throw e;
         }
     }
 
     /**
-     * A helper method that simlinks a file to another file
+     * A helper method that symlinks a file to another file
      *
      * @param origFile the original file
      * @param destFile the destination file
-     * @throws IOException if failed to simlink file
+     * @throws IOException if failed to symlink file
      */
-    public static void simlinkFile(File origFile, File destFile) throws IOException {
+    public static void symlinkFile(File origFile, File destFile) throws IOException {
         CommandResult res = linkFile(origFile, destFile, true);
         if (!CommandStatus.SUCCESS.equals(res.getStatus())) {
             throw new IOException(
                     String.format(
-                            "Error trying to simlink: %s\nstdout:%s\nstderr:%s",
+                            "Error trying to symlink: %s\nstdout:%s\nstderr:%s",
                             res.getStatus(), res.getStdout(), res.getStderr()));
         }
     }
 
-    private static CommandResult linkFile(File origFile, File destFile, boolean simlink)
+    private static CommandResult linkFile(File origFile, File destFile, boolean symlink)
             throws IOException {
         if (!origFile.exists()) {
-            String link = simlink ? "simlink" : "hardlink";
+            String link = symlink ? "symlink" : "hardlink";
             throw new IOException(
                     String.format(
                             "Cannot %s %s. File does not exist", link, origFile.getAbsolutePath()));
         }
         List<String> cmd = new ArrayList<>();
         cmd.add("ln");
-        if (simlink) {
+        if (symlink) {
             cmd.add("-s");
         }
         cmd.add(origFile.getAbsolutePath());
@@ -468,7 +472,7 @@ public class FileUtil {
     }
 
     /**
-     * Recursively simlink folder contents.
+     * Recursively symlink folder contents.
      *
      * <p>Only supports copying of files and directories - symlinks are not copied. If the
      * destination directory does not exist, it will be created.
@@ -477,7 +481,7 @@ public class FileUtil {
      * @param destDir the destination folder
      * @throws IOException
      */
-    public static void recursiveSimlink(File sourceDir, File destDir) throws IOException {
+    public static void recursiveSymlink(File sourceDir, File destDir) throws IOException {
         if (!destDir.isDirectory() && !destDir.mkdir()) {
             throw new IOException(
                     String.format("Could not create directory %s", destDir.getAbsolutePath()));
@@ -485,9 +489,9 @@ public class FileUtil {
         for (File childFile : sourceDir.listFiles()) {
             File destChild = new File(destDir, childFile.getName());
             if (childFile.isDirectory()) {
-                recursiveSimlink(childFile, destChild);
+                recursiveSymlink(childFile, destChild);
             } else if (childFile.isFile()) {
-                simlinkFile(childFile, destChild);
+                symlinkFile(childFile, destChild);
             }
         }
     }
@@ -625,7 +629,8 @@ public class FileUtil {
      */
     public static void recursiveDelete(File rootDir) {
         if (rootDir != null) {
-            if (rootDir.isDirectory()) {
+            // We expand directories if they are not symlink
+            if (rootDir.isDirectory() && !Files.isSymbolicLink(rootDir.toPath())) {
                 File[] childFiles = rootDir.listFiles();
                 if (childFiles != null) {
                     for (File child : childFiles) {
@@ -780,13 +785,15 @@ public class FileUtil {
     public static File findFile(File dir, String fileName) {
         if (dir.listFiles() != null) {
             for (File file : dir.listFiles()) {
-                if (file.getName().equals(fileName)) {
-                    return file;
-                } else if (file.isDirectory()) {
+                if (file.isDirectory()) {
                     File result = findFile(file, fileName);
                     if (result != null) {
                         return result;
                     }
+                }
+                // after exploring the sub-dir, if the dir itself is the only match return it.
+                if (file.getName().equals(fileName)) {
+                    return file;
                 }
             }
         }
@@ -1016,7 +1023,7 @@ public class FileUtil {
      */
     public static Set<String> findFiles(File dir, String filter) throws IOException {
         Set<String> files = new HashSet<String>();
-        Files.walk(Paths.get(dir.getAbsolutePath()))
+        Files.walk(Paths.get(dir.getAbsolutePath()), FileVisitOption.FOLLOW_LINKS)
                 .filter(path -> new File(path.toString()).getName().matches(filter))
                 .forEach(path -> files.add(path.toString()));
         return files;

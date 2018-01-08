@@ -25,6 +25,8 @@ import com.android.tradefed.config.Option.Importance;
 import com.android.tradefed.config.OptionCopier;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.metric.IMetricCollector;
+import com.android.tradefed.device.metric.IMetricCollectorReceiver;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.ITestInvocationListener;
@@ -56,6 +58,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -66,12 +69,14 @@ import java.util.Set;
 public abstract class ITestSuite
         implements IRemoteTest,
                 IDeviceTest,
+                IMultiDeviceTest,
                 IBuildReceiver,
                 ISystemStatusCheckerReceiver,
                 IShardableTest,
                 ITestCollector,
                 IInvocationContextReceiver,
-                IRuntimeHintProvider {
+                IRuntimeHintProvider,
+                IMetricCollectorReceiver {
 
     public static final String MODULE_CHECKER_PRE = "PreModuleChecker";
     public static final String MODULE_CHECKER_POST = "PostModuleChecker";
@@ -177,8 +182,10 @@ public abstract class ITestSuite
 
     private ITestDevice mDevice;
     private IBuildInfo mBuildInfo;
+    private Map<ITestDevice, IBuildInfo> mDeviceInfos;
     private List<ISystemStatusChecker> mSystemStatusCheckers;
     private IInvocationContext mContext;
+    private List<IMetricCollector> mMetricCollectors;
 
     // Sharding attributes
     private boolean mIsSharded = false;
@@ -234,7 +241,7 @@ public abstract class ITestSuite
             // If we are sharded and already know what to run then we just do it.
             runModules.add(mDirectModule);
             mDirectModule.setDevice(mDevice);
-            mDirectModule.setDeviceInfos(mContext.getDeviceBuildMap());
+            mDirectModule.setDeviceInfos(mDeviceInfos);
             mDirectModule.setBuild(mBuildInfo);
             return runModules;
         }
@@ -261,7 +268,7 @@ public abstract class ITestSuite
                             config.getValue().getMultiTargetPreparers(),
                             config.getValue());
             module.setDevice(mDevice);
-            module.setDeviceInfos(mContext.getDeviceBuildMap());
+            module.setDeviceInfos(mDeviceInfos);
             module.setBuild(mBuildInfo);
             runModules.add(module);
         }
@@ -377,6 +384,8 @@ public abstract class ITestSuite
         if (mCollectTestsOnly) {
             module.setCollectTestsOnly(mCollectTestsOnly);
         }
+        // Pass the run defined collectors to be used.
+        module.setMetricCollectors(mMetricCollectors);
         // Actually run the module
         module.run(listener, failureListener);
 
@@ -524,7 +533,10 @@ public abstract class ITestSuite
                     ((IDeviceTest) test).setDevice(mDevice);
                 }
                 if (test instanceof IMultiDeviceTest) {
-                    ((IMultiDeviceTest) test).setDeviceInfos(mContext.getDeviceBuildMap());
+                    ((IMultiDeviceTest) test).setDeviceInfos(mDeviceInfos);
+                }
+                if (test instanceof IInvocationContextReceiver) {
+                    ((IInvocationContextReceiver) test).setInvocationContext(mContext);
                 }
             }
         }
@@ -559,6 +571,12 @@ public abstract class ITestSuite
         return mBuildInfo;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void setDeviceInfos(Map<ITestDevice, IBuildInfo> deviceInfos) {
+        mDeviceInfos = deviceInfos;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -574,6 +592,12 @@ public abstract class ITestSuite
     @Override
     public void setCollectTestsOnly(boolean shouldCollectTest) {
         mCollectTestsOnly = shouldCollectTest;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void setMetricCollectors(List<IMetricCollector> collectors) {
+        mMetricCollectors = collectors;
     }
 
     /**

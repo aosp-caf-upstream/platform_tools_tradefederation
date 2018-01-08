@@ -25,6 +25,8 @@ import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.testtype.IRemoteTest;
 
+import java.util.Map;
+
 /**
  * Listener attached to each {@link IRemoteTest} of each module in order to collect the list of
  * results.
@@ -34,6 +36,8 @@ public class ModuleListener extends CollectingTestListener {
     private ITestInvocationListener mListener;
     private int mExpectedTestCount = 0;
     private boolean mSkip = false;
+    private boolean mTestFailed = false;
+    private int mTestsRan = 1;
 
     /** Constructor. Accept the original listener to forward testLog callback. */
     public ModuleListener(ITestInvocationListener listener) {
@@ -70,11 +74,36 @@ public class ModuleListener extends CollectingTestListener {
     @Override
     public void testStarted(TestIdentifier test, long startTime) {
         CLog.d("ModuleListener.testStarted(%s)", test.toString());
+        mTestFailed = false;
         super.testStarted(test, startTime);
         if (mSkip) {
             super.testIgnored(test);
         }
     }
+
+    /** Helper to log the test passed if it didn't fail. */
+    private void logTestPassed(String testName) {
+        if (!mTestFailed) {
+            CLog.logAndDisplay(
+                    LogLevel.INFO, "[%d/%d] %s pass", mTestsRan, mExpectedTestCount, testName);
+        }
+        mTestsRan++;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void testEnded(TestIdentifier test, Map<String, String> testMetrics) {
+        logTestPassed(test.toString());
+        super.testEnded(test, testMetrics);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void testEnded(TestIdentifier test, long endTime, Map<String, String> testMetrics) {
+        logTestPassed(test.toString());
+        super.testEnded(test, endTime, testMetrics);
+    }
+
 
     /** {@inheritDoc} */
     @Override
@@ -83,7 +112,13 @@ public class ModuleListener extends CollectingTestListener {
             return;
         }
         CLog.logAndDisplay(
-                LogLevel.INFO, "ModuleListener.testFailed(%s, %s)", test.toString(), trace);
+                LogLevel.INFO,
+                "[%d/%d] %s fail:\n%s",
+                mTestsRan,
+                mExpectedTestCount,
+                test.toString(),
+                trace);
+        mTestFailed = true;
         super.testFailed(test, trace);
     }
 

@@ -28,24 +28,3 @@ python_library_host {
   }
 }
 
-// Example hello world test that can run in Tradefed
-python_binary_host {
-  name: "tradefed_hello_world",
-  main: "helloWorld/test_hello_world.py",
-  srcs: [
-    "helloWorld/test_hello_world.py",
-  ],
-  libs: [
-    "tradefed_python_lib",
-  ],
-  version: {
-    py2: {
-      enabled: true,
-      embedded_launcher: true,
-    },
-    py3: {
-      enabled: false,
-    },
-  }
-}
-

@@ -25,8 +25,11 @@ import com.android.ddmlib.TimeoutException;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.ITestRunListener;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
+import com.android.tradefed.config.OptionSetter;
 import com.android.tradefed.device.ITestDevice.MountPointInfo;
 import com.android.tradefed.device.ITestDevice.RecoveryMode;
+import com.android.tradefed.host.HostOptions;
+import com.android.tradefed.host.IHostOptions;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.ByteArrayInputStreamSource;
 import com.android.tradefed.result.InputStreamSource;
@@ -108,6 +111,12 @@ public class TestDeviceTest extends TestCase {
         @Override
         void doReboot() throws DeviceNotAvailableException, UnsupportedOperationException {
         }
+
+        @Override
+        IHostOptions getHostOptions() {
+            // Avoid issue with GlobalConfiguration
+            return new HostOptions();
+        }
     }
 
     /**
@@ -178,9 +187,13 @@ public class TestDeviceTest extends TestCase {
      */
     public void testEnableAdbRoot_noEnableRoot() throws Exception {
         boolean enableRoot = mTestDevice.getOptions().isEnableAdbRoot();
-        mTestDevice.getOptions().setEnableAdbRoot(false);
-        assertFalse(mTestDevice.enableAdbRoot());
-        mTestDevice.getOptions().setEnableAdbRoot(enableRoot);
+        OptionSetter setter = new OptionSetter(mTestDevice.getOptions());
+        setter.setOptionValue("enable-root", "false");
+        try {
+            assertFalse(mTestDevice.enableAdbRoot());
+        } finally {
+            setter.setOptionValue("enable-root", Boolean.toString(enableRoot));
+        }
     }
 
     /**
@@ -1796,10 +1809,38 @@ public class TestDeviceTest extends TestCase {
      */
     public void testListUsers_invalidOutput() throws Exception {
         final String listUsersCommand = "pm list users";
-        injectShellResponse(listUsersCommand, "not really what we are looking for");
+        final String output = "not really what we are looking for";
+        injectShellResponse(listUsersCommand, output);
         replayMocks();
-        ArrayList<Integer> actual = mTestDevice.listUsers();
-        assertNull(actual);
+        try {
+            mTestDevice.listUsers();
+            fail("Failed to throw DeviceRuntimeException.");
+        } catch (DeviceRuntimeException expected) {
+            // expected
+            assertEquals(
+                    String.format("'%s' in not a valid output for 'pm list users'", output),
+                    expected.getMessage());
+        }
+    }
+
+    /** Test that invalid format of users is handled by {@link TestDevice#listUsers()}. */
+    public void testListUsers_unparsableOutput() throws Exception {
+        final String listUsersCommand = "pm list users";
+        final String output = "Users:\n" + "\tUserInfo{0:Ownertooshort}";
+        injectShellResponse(listUsersCommand, output);
+        replayMocks();
+        try {
+            mTestDevice.listUsers();
+            fail("Failed to throw DeviceRuntimeException.");
+        } catch (DeviceRuntimeException expected) {
+            // expected
+            assertEquals(
+                    String.format(
+                            "device output: '%s' \nline: '\tUserInfo{0:Ownertooshort}' was not in the"
+                                    + " expected format for user info.",
+                            output),
+                    expected.getMessage());
+        }
     }
 
     /**

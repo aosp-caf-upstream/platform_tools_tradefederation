@@ -17,6 +17,7 @@ package com.android.tradefed.testtype.suite;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 import com.android.ddmlib.testrunner.TestIdentifier;
@@ -30,6 +31,7 @@ import com.android.tradefed.config.IDeviceConfiguration;
 import com.android.tradefed.config.OptionSetter;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.metric.IMetricCollectorReceiver;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.invoker.IRescheduler;
 import com.android.tradefed.invoker.InvocationContext;
@@ -41,6 +43,7 @@ import com.android.tradefed.result.ResultForwarder;
 import com.android.tradefed.result.suite.SuiteResultReporter;
 import com.android.tradefed.suite.checker.ISystemStatusChecker;
 import com.android.tradefed.suite.checker.ISystemStatusCheckerReceiver;
+import com.android.tradefed.testtype.Abi;
 import com.android.tradefed.testtype.IInvocationContextReceiver;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.util.FileUtil;
@@ -135,6 +138,8 @@ public class ITestSuiteIntegrationTest {
         mContext = new InvocationContext();
         mContext.addAllocatedDevice("device", mMockDevice);
         mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+
+        doReturn("serial").when(mMockDevice).getSerialNumber();
     }
 
     @After
@@ -176,6 +181,7 @@ public class ITestSuiteIntegrationTest {
                             ((TestSuiteStub) test).mShardedTestToRun = mTests;
                         }
                     }
+                    config.getConfigurationDescription().setAbi(new Abi("armeabi-v7a", "32"));
                 } catch (ConfigurationException e) {
                     CLog.e(e);
                     throw new RuntimeException(e);
@@ -206,6 +212,10 @@ public class ITestSuiteIntegrationTest {
         assertEquals(6, mListener.getTotalTests());
         assertEquals(6, mListener.getPassedTests());
         assertEquals(0, mListener.getFailedTests());
+        // Ensure that we have correctly kept track of module's abi.
+        assertEquals(2, mListener.getModulesAbi().size());
+        assertEquals("armeabi-v7a", mListener.getModulesAbi().get("module1.config").getName());
+        assertEquals("armeabi-v7a", mListener.getModulesAbi().get("module2.config").getName());
     }
 
     /** Tests that a normal run with 2 modules with 3 tests each, 1 failed test in second module. */
@@ -298,6 +308,9 @@ public class ITestSuiteIntegrationTest {
                 if (test instanceof IInvocationContextReceiver) {
                     ((IInvocationContextReceiver) test).setInvocationContext(mContext);
                 }
+                if (test instanceof IMetricCollectorReceiver) {
+                    ((IMetricCollectorReceiver) test).setMetricCollectors(new ArrayList<>());
+                }
                 try {
                     test.run(new ResultForwarder(config.getTestInvocationListeners()));
                 } catch (DeviceNotAvailableException e) {
@@ -337,6 +350,10 @@ public class ITestSuiteIntegrationTest {
                                         if (test instanceof IInvocationContextReceiver) {
                                             ((IInvocationContextReceiver) test)
                                                     .setInvocationContext(mContext);
+                                        }
+                                        if (test instanceof IMetricCollectorReceiver) {
+                                            ((IMetricCollectorReceiver) test)
+                                                    .setMetricCollectors(new ArrayList<>());
                                         }
                                         try {
                                             test.run(
@@ -394,6 +411,8 @@ public class ITestSuiteIntegrationTest {
         assertEquals(6, mListener.getTotalTests());
         assertEquals(5, mListener.getPassedTests());
         assertEquals(1, mListener.getFailedTests());
+        // 2 shards so 2 serials
+        assertEquals(2, mContext.getShardsSerials().size());
     }
 
     /**
@@ -435,6 +454,8 @@ public class ITestSuiteIntegrationTest {
         assertEquals(6, mListener.getTotalTests());
         assertEquals(5, mListener.getPassedTests());
         assertEquals(1, mListener.getFailedTests());
+        // 2 shards so 2 serials
+        assertEquals(2, mContext.getShardsSerials().size());
     }
 
     /**
@@ -488,6 +509,8 @@ public class ITestSuiteIntegrationTest {
         assertEquals(3, mListener.getTotalTests());
         assertEquals(3, mListener.getPassedTests());
         assertEquals(0, mListener.getFailedTests());
+        // Not local sharding so no serial is tracked here.
+        assertEquals(0, mContext.getShardsSerials().size());
     }
 
     /**

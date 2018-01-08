@@ -13,6 +13,8 @@
 # limitations under the License.
 
 LOCAL_PATH := $(call my-dir)
+COMPATIBILITY.tradefed_tests_dir := \
+  $(COMPATIBILITY.tradefed_tests_dir) $(LOCAL_PATH)/res/config $(LOCAL_PATH)/tests/res/config $(LOCAL_PATH)/prod-tests/res/config
 
 include $(CLEAR_VARS)
 # Module to compile protos for tradefed
@@ -32,7 +34,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_JAVA_RESOURCE_DIRS := res
 
 LOCAL_JAVACFLAGS += -g -Xlint
-ifeq ($(EXPERIMENTAL_USE_OPENJDK9),true)
+ifdef TARGET_OPENJDK9
 LOCAL_JAVACFLAGS += --add-modules=java.xml.bind
 endif
 
@@ -95,8 +97,11 @@ include $(CLEAR_VARS)
 # Create a simple alias to build all the TF-related targets
 # Note that this is incompatible with `make dist`.  If you want to make
 # the distribution, you must run `tapas` with the individual target names.
+.PHONY: tradefed-core
+tradefed-core: tradefed atest_tradefed tf-prod-tests tf-prod-metatests tradefed-contrib script_help
+
 .PHONY: tradefed-all
-tradefed-all: tradefed tradefed-tests tf-prod-tests tf-prod-metatests tradefed_win script_help verify tradefed-contrib loganalysis-tests atest_tradefed
+tradefed-all: tradefed-core tradefed-tests tradefed_win verify loganalysis-tests
 
 # ====================================
 include $(CLEAR_VARS)

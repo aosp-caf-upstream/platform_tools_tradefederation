@@ -25,6 +25,7 @@ import com.android.tradefed.config.IConfiguration;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.DeviceUnresponsiveException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.metric.IMetricCollector;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.invoker.InvocationContext;
 import com.android.tradefed.log.ILogRegistry.EventType;
@@ -83,6 +84,7 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
     private IBuildInfo mBuild;
     private ITestDevice mDevice;
     private Map<ITestDevice, IBuildInfo> mDeviceInfos;
+    private List<IMetricCollector> mRunMetricCollectors;
     private boolean mCollectTestsOnly = false;
 
     private List<TestRunResult> mTestsResults = new ArrayList<>();
@@ -213,6 +215,11 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
         mDeviceInfos = deviceInfos;
     }
 
+    /** Inject the List of {@link IMetricCollector} to be used by the module. */
+    public void setMetricCollectors(List<IMetricCollector> collectors) {
+        mRunMetricCollectors = collectors;
+    }
+
     /**
      * Run all the {@link IRemoteTest} contained in the module and use all the preparers before and
      * after to setup and clean the device.
@@ -332,13 +339,23 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                     currentTestListener.add(failureListener);
                 }
                 currentTestListener.add(moduleListener);
+
+                ITestInvocationListener runListener = new ResultForwarder(currentTestListener);
+                if (mRunMetricCollectors != null) {
+                    // Module only init the collectors here to avoid triggering the collectors when
+                    // replaying the cached events at the end. This ensure metrics are capture at
+                    // the proper time in the invocation.
+                    for (IMetricCollector collector : mRunMetricCollectors) {
+                        runListener = collector.init(mModuleInvocationContext, runListener);
+                    }
+                }
                 try {
-                    test.run(new ResultForwarder(currentTestListener));
+                    test.run(runListener);
                 } catch (RuntimeException re) {
                     CLog.e("Module '%s' - test '%s' threw exception:", getId(), test.getClass());
                     CLog.e(re);
                     CLog.e("Proceeding to the next test.");
-                    reportFailure(new ResultForwarder(currentTestListener), re.getMessage());
+                    reportFailure(runListener, re.getMessage());
                 } catch (DeviceUnresponsiveException due) {
                     // being able to catch a DeviceUnresponsiveException here implies that
                     // recovery was successful, and test execution should proceed to next
@@ -348,7 +365,7 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                                     + "successful, proceeding with next module. Stack trace:");
                     CLog.w(due);
                     CLog.w("Proceeding to the next test.");
-                    reportFailure(new ResultForwarder(currentTestListener), due.getMessage());
+                    reportFailure(runListener, due.getMessage());
                 } catch (DeviceNotAvailableException dnae) {
                     // We do special logging of some information in Context of the module for easier
                     // debugging.
@@ -372,16 +389,7 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
             long cleanStartTime = getCurrentTime();
             try {
                 // Tear down
-                List<IMultiTargetPreparer> cleanerList = new ArrayList<>(mMultiPreparers);
-                Collections.reverse(cleanerList);
-                for (IMultiTargetPreparer multiCleaner : cleanerList) {
-                    CLog.d("Multi cleaner: %s", multiCleaner.getClass().getSimpleName());
-                    multiCleaner.tearDown(mModuleInvocationContext, null);
-                }
-                for (ITargetCleaner cleaner : mCleaners) {
-                    CLog.d("Cleaner: %s", cleaner.getClass().getSimpleName());
-                    cleaner.tearDown(mDevice, mBuild, null);
-                }
+                runTearDown();
             } catch (DeviceNotAvailableException tearDownException) {
                 CLog.e(
                         "Module %s failed during tearDown with: %s",
@@ -482,6 +490,10 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
     /** Run all the prepare steps. */
     private Exception runPreparerSetup(ITargetPreparer preparer, ITestLogger logger)
             throws DeviceNotAvailableException {
+        if (preparer.isDisabled()) {
+            // If disabled skip completely.
+            return null;
+        }
         CLog.d("Preparer: %s", preparer.getClass().getSimpleName());
         try {
             // set the logger in case they need it.
@@ -499,6 +511,10 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
 
     /** Run all multi target preparer step. */
     private Exception runMultiPreparerSetup(IMultiTargetPreparer preparer, ITestLogger logger) {
+        if (preparer.isDisabled()) {
+            // If disabled skip completely.
+            return null;
+        }
         CLog.d("Multi preparer: %s", preparer.getClass().getSimpleName());
         try {
             // set the logger in case they need it.
@@ -511,6 +527,29 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
             CLog.e("Unexpected Exception from preparer: %s", preparer.getClass().getName());
             CLog.e(e);
             return e;
+        }
+    }
+
+    /** Run all the tear down steps from preparers. */
+    private void runTearDown() throws DeviceNotAvailableException {
+        // Tear down
+        List<IMultiTargetPreparer> cleanerList = new ArrayList<>(mMultiPreparers);
+        Collections.reverse(cleanerList);
+        for (IMultiTargetPreparer multiCleaner : cleanerList) {
+            if (multiCleaner.isDisabled()) {
+                // If disabled skip completely.
+                continue;
+            }
+            CLog.d("Multi cleaner: %s", multiCleaner.getClass().getSimpleName());
+            multiCleaner.tearDown(mModuleInvocationContext, null);
+        }
+        for (ITargetCleaner cleaner : mCleaners) {
+            if (cleaner.isDisabled()) {
+                // If disabled skip completely.
+                continue;
+            }
+            CLog.d("Cleaner: %s", cleaner.getClass().getSimpleName());
+            cleaner.tearDown(mDevice, mBuild, null);
         }
     }
 

@@ -103,7 +103,10 @@ public interface IInvocationContext extends Serializable {
      */
     public String getDeviceName(ITestDevice device);
 
-    /** Return the {@link IBuildInfo} associated with the device configuration name provided. */
+    /**
+     * Return the {@link IBuildInfo} associated with the device configuration name provided. Returns
+     * null, if the deviceName cannot be matched.
+     */
     public IBuildInfo getBuildInfo(String deviceName);
 
     /**
@@ -166,4 +169,18 @@ public interface IInvocationContext extends Serializable {
      * Sets the {@link RecoveryMode} of all the devices part of the context
      */
     public void setRecoveryModeForAllDevices(RecoveryMode mode);
+
+    /**
+     * Add a serial to be tracked as assigned to one of the shard running some tests.
+     *
+     * @param index the index of the shard using the serials
+     * @param serials The list of serials to be tracked.
+     */
+    public void addSerialsFromShard(Integer index, List<String> serials);
+
+    /**
+     * Returns the Map of all tracked serials and their shard involved in sharding. Empty if not a
+     * sharded invocation.
+     */
+    public Map<Integer, List<String>> getShardsSerials();
 }

@@ -24,6 +24,7 @@ public enum LogDataType {
     XML("xml", "text/xml", false, true),
     HTML("html", "text/html", true, true),
     PNG("png", "image/png", true, false),
+    MP4("mp4", "video/mp4", true, false),
     EAR("ear", "application/octet-stream", true, false),
     ZIP("zip", "application/zip", true, false),
     JPEG("jpeg", "image/jpeg", true, false),
@@ -48,6 +49,7 @@ public enum LogDataType {
     CPU_INFO("txt", "text/plain", false, true),  // dumpsys cpuinfo
     JACOCO_CSV("csv", "text/csv", false, true), // JaCoCo coverage report in CSV format
     JACOCO_XML("xml", "text/xml", false, true), // JaCoCo coverage report in XML format
+    ATRACE("dat", "text/plain", true, false),
     /* Unknown file type */
     UNKNOWN("dat", "text/plain", false, false);
 

@@ -46,6 +46,7 @@ import com.android.tradefed.config.OptionCopierTest;
 import com.android.tradefed.config.OptionSetterTest;
 import com.android.tradefed.config.OptionUpdateRuleTest;
 import com.android.tradefed.config.SandboxConfigurationFactoryTest;
+import com.android.tradefed.device.AndroidDebugBridgeWrapperTest;
 import com.android.tradefed.device.BackgroundDeviceActionTest;
 import com.android.tradefed.device.CpuStatsCollectorTest;
 import com.android.tradefed.device.DeviceManagerTest;
@@ -63,10 +64,15 @@ import com.android.tradefed.device.TestDeviceTest;
 import com.android.tradefed.device.TopHelperTest;
 import com.android.tradefed.device.WaitDeviceRecoveryTest;
 import com.android.tradefed.device.WifiHelperTest;
+import com.android.tradefed.device.metric.AtraceCollectorTest;
 import com.android.tradefed.device.metric.BaseDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.ScheduleMultipleDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduledDeviceMetricCollectorTest;
 import com.android.tradefed.invoker.InvocationContextTest;
+import com.android.tradefed.invoker.InvocationExecutionTest;
 import com.android.tradefed.invoker.ShardListenerTest;
+import com.android.tradefed.invoker.ShardMasterResultForwarderTest;
 import com.android.tradefed.invoker.TestInvocationMultiTest;
 import com.android.tradefed.invoker.TestInvocationTest;
 import com.android.tradefed.invoker.shard.ShardHelperTest;
@@ -128,7 +134,6 @@ import com.android.tradefed.targetprep.PushFilePreparerTest;
 import com.android.tradefed.targetprep.PythonVirtualenvPreparerTest;
 import com.android.tradefed.targetprep.RebootTargetPreparerTest;
 import com.android.tradefed.targetprep.RestartSystemServerTargetPreparerTest;
-import com.android.tradefed.targetprep.TimeSetterTargetPreparerTest;
 import com.android.tradefed.targetprep.RootTargetPreparerTest;
 import com.android.tradefed.targetprep.RunCommandTargetPreparerTest;
 import com.android.tradefed.targetprep.RunHostCommandTargetPreparerTest;
@@ -137,6 +142,7 @@ import com.android.tradefed.targetprep.StopServicesSetupTest;
 import com.android.tradefed.targetprep.SystemUpdaterDeviceFlasherTest;
 import com.android.tradefed.targetprep.TestAppInstallSetupTest;
 import com.android.tradefed.targetprep.TestFilePushSetupTest;
+import com.android.tradefed.targetprep.TimeSetterTargetPreparerTest;
 import com.android.tradefed.targetprep.suite.SuiteApkInstallerTest;
 import com.android.tradefed.testtype.AndroidJUnitTestTest;
 import com.android.tradefed.testtype.CodeCoverageListenerTest;
@@ -168,6 +174,7 @@ import com.android.tradefed.testtype.PythonUnitTestResultParserTest;
 import com.android.tradefed.testtype.PythonUnitTestRunnerTest;
 import com.android.tradefed.testtype.TfTestLauncherTest;
 import com.android.tradefed.testtype.VersionedTfLauncherTest;
+import com.android.tradefed.testtype.host.CoverageMeasurementForwarderTest;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4TestTest;
 import com.android.tradefed.testtype.python.PythonBinaryHostTestTest;
 import com.android.tradefed.testtype.suite.AtestRunnerTest;
@@ -293,6 +300,7 @@ import org.junit.runners.Suite.SuiteClasses;
     SandboxConfigurationFactoryTest.class,
 
     // device
+    AndroidDebugBridgeWrapperTest.class,
     BackgroundDeviceActionTest.class,
     CpuStatsCollectorTest.class,
     DeviceManagerTest.class,
@@ -313,12 +321,17 @@ import org.junit.runners.Suite.SuiteClasses;
     WifiHelperTest.class,
 
     // device.metric
-    ScheduledDeviceMetricCollectorTest.class,
+    AtraceCollectorTest.class,
     BaseDeviceMetricCollectorTest.class,
+    FilePullerDeviceMetricCollectorTest.class,
+    ScheduledDeviceMetricCollectorTest.class,
+    ScheduleMultipleDeviceMetricCollectorTest.class,
 
     // invoker
     InvocationContextTest.class,
+    InvocationExecutionTest.class,
     ShardListenerTest.class,
+    ShardMasterResultForwarderTest.class,
     TestInvocationMultiTest.class,
     TestInvocationTest.class,
 
@@ -412,6 +425,7 @@ import org.junit.runners.Suite.SuiteClasses;
     AndroidJUnitTestTest.class,
     CodeCoverageListenerTest.class,
     CodeCoverageTestBaseTest.class,
+    CoverageMeasurementForwarderTest.class,
     DeviceBatteryLevelCheckerTest.class,
     DeviceSuiteTest.class,
     DeviceTestCaseTest.class,

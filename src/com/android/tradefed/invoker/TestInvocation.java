@@ -19,21 +19,15 @@ import com.android.ddmlib.IDevice;
 import com.android.ddmlib.Log.LogLevel;
 import com.android.tradefed.build.BuildRetrievalError;
 import com.android.tradefed.build.IBuildInfo;
-import com.android.tradefed.build.IBuildProvider;
-import com.android.tradefed.build.IDeviceBuildInfo;
-import com.android.tradefed.build.IDeviceBuildProvider;
 import com.android.tradefed.command.CommandRunner.ExitCode;
 import com.android.tradefed.config.GlobalConfiguration;
 import com.android.tradefed.config.IConfiguration;
-import com.android.tradefed.config.IDeviceConfiguration;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.DeviceUnresponsiveException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.ITestDevice.RecoveryMode;
 import com.android.tradefed.device.StubDevice;
 import com.android.tradefed.device.TestDeviceState;
-import com.android.tradefed.device.metric.IMetricCollector;
-import com.android.tradefed.invoker.shard.IShardHelper;
 import com.android.tradefed.invoker.shard.ShardBuildCloner;
 import com.android.tradefed.log.ILeveledLogOutput;
 import com.android.tradefed.log.ILogRegistry;
@@ -41,41 +35,28 @@ import com.android.tradefed.log.LogRegistry;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.AggregatingProfilerListener;
 import com.android.tradefed.result.ITestInvocationListener;
-import com.android.tradefed.result.ITestLoggerReceiver;
 import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.result.LogSaverResultForwarder;
 import com.android.tradefed.result.ResultForwarder;
 import com.android.tradefed.sandbox.SandboxInvocationRunner;
-import com.android.tradefed.suite.checker.ISystemStatusCheckerReceiver;
 import com.android.tradefed.targetprep.BuildError;
 import com.android.tradefed.targetprep.DeviceFailedToBootError;
-import com.android.tradefed.targetprep.IHostCleaner;
-import com.android.tradefed.targetprep.ITargetCleaner;
-import com.android.tradefed.targetprep.ITargetPreparer;
 import com.android.tradefed.targetprep.TargetSetupError;
-import com.android.tradefed.targetprep.multi.IMultiTargetPreparer;
-import com.android.tradefed.testtype.IBuildReceiver;
-import com.android.tradefed.testtype.IDeviceTest;
-import com.android.tradefed.testtype.IInvocationContextReceiver;
-import com.android.tradefed.testtype.IMultiDeviceTest;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.testtype.IResumableTest;
 import com.android.tradefed.testtype.IRetriableTest;
-import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.IRunUtil;
 import com.android.tradefed.util.RunInterruptedException;
 import com.android.tradefed.util.RunUtil;
-import com.android.tradefed.util.SystemUtil;
 import com.android.tradefed.util.TimeUtil;
+
 import com.google.common.annotations.VisibleForTesting;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -91,13 +72,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class TestInvocation implements ITestInvocation {
 
+    /** Key of the command line args attributes */
+    public static final String COMMAND_ARGS_KEY = "command_line_args";
+
     /**
      * Format of the key in {@link IBuildInfo} to log the battery level for each step of the
      * invocation. (Setup, test, tear down).
      */
     private static final String BATTERY_ATTRIBUTE_FORMAT_KEY = "%s-battery-%s";
-    /** Key of the command line args attributes */
-    private static final String COMMAND_ARGS_KEY = "command_line_args";
 
     static final String TRADEFED_LOG_NAME = "host_log";
     static final String DEVICE_LOG_NAME_PREFIX = "device_logcat_";
@@ -158,111 +140,6 @@ public class TestInvocation implements ITestInvocation {
         }
     }
 
-    @Override
-    public boolean shardConfig(
-            IConfiguration config, IInvocationContext context, IRescheduler rescheduler) {
-        mStatus = "sharding";
-        return createShardHelper().shardConfig(config, context, rescheduler);
-    }
-
-    /** Create an return the {@link IShardHelper} to be used. */
-    @VisibleForTesting
-    protected IShardHelper createShardHelper() {
-        return GlobalConfiguration.getInstance().getShardingStrategy();
-    }
-
-    /**
-     * Update the {@link IBuildInfo} with additional info from the {@link IConfiguration}.
-     *
-     * @param info the {@link IBuildInfo}
-     * @param config the {@link IConfiguration}
-     */
-    private void updateBuild(IBuildInfo info, IConfiguration config) {
-        if (config.getCommandLine() != null) {
-            // TODO: obfuscate the password if any.
-            info.addBuildAttribute(COMMAND_ARGS_KEY, config.getCommandLine());
-        }
-        if (config.getCommandOptions().getShardCount() != null) {
-            info.addBuildAttribute("shard_count",
-                    config.getCommandOptions().getShardCount().toString());
-        }
-        if (config.getCommandOptions().getShardIndex() != null) {
-            info.addBuildAttribute("shard_index",
-                    config.getCommandOptions().getShardIndex().toString());
-        }
-        // TODO: update all the configs to only use test-tag from CommandOption and not build
-        // providers.
-        // When CommandOption is set, it overrides any test-tag from build_providers
-        if (!"stub".equals(config.getCommandOptions().getTestTag())) {
-            info.setTestTag(getTestTag(config));
-        } else if (info.getTestTag() == null || info.getTestTag().isEmpty()) {
-            // We ensure that that a default test-tag is always available.
-            info.setTestTag("stub");
-        } else {
-            CLog.w("Using the test-tag from the build_provider. Consider updating your config to"
-                    + " have no alias/namespace in front of test-tag.");
-        }
-
-        // Load environment tests dir.
-        if (info instanceof IDeviceBuildInfo) {
-            File testsDir = ((IDeviceBuildInfo) info).getTestsDir();
-            if (testsDir != null && testsDir.exists()) {
-                for (File externalTestDir : getExternalTestCasesDirs()) {
-                    try {
-                        File subDir = new File(testsDir, externalTestDir.getName());
-                        FileUtil.recursiveSimlink(externalTestDir, subDir);
-                    } catch (IOException e) {
-                        CLog.e(
-                                "Failed to load external test dir %s. Ignoring it.",
-                                externalTestDir);
-                        CLog.e(e);
-                    }
-                }
-            }
-        }
-    }
-
-    /** Returns the list of external directories to Tradefed coming from the environment. */
-    @VisibleForTesting
-    List<File> getExternalTestCasesDirs() {
-        return SystemUtil.getExternalTestCasesDirs();
-    }
-
-    /**
-     * Update the {@link IInvocationContext} with additional info from the {@link IConfiguration}.
-     *
-     * @param context the {@link IInvocationContext}
-     * @param config the {@link IConfiguration}
-     */
-    private void updateInvocationContext(IInvocationContext context, IConfiguration config) {
-        // TODO: Once reporting on context is done, only set context attributes
-        if (config.getCommandLine() != null) {
-            // TODO: obfuscate the password if any.
-            context.addInvocationAttribute(COMMAND_ARGS_KEY, config.getCommandLine());
-        }
-        if (config.getCommandOptions().getShardCount() != null) {
-            context.addInvocationAttribute("shard_count",
-                    config.getCommandOptions().getShardCount().toString());
-        }
-        if (config.getCommandOptions().getShardIndex() != null) {
-            context.addInvocationAttribute("shard_index",
-                    config.getCommandOptions().getShardIndex().toString());
-        }
-        context.setTestTag(getTestTag(config));
-    }
-
-    /**
-     * Helper to create the test tag from the configuration.
-     */
-    private String getTestTag(IConfiguration config) {
-        String testTag = config.getCommandOptions().getTestTag();
-        if (config.getCommandOptions().getTestTagSuffix() != null) {
-            testTag = String.format("%s-%s", testTag,
-                    config.getCommandOptions().getTestTagSuffix());
-        }
-        return testTag;
-    }
-
     /**
      * Display a log message informing the user of a invocation being started.
      *
@@ -302,8 +179,13 @@ public class TestInvocation implements ITestInvocation {
      * @param config the {@link IConfiguration}
      * @param context the {@link IInvocationContext} to use.
      */
-    private void performInvocation(IConfiguration config, IInvocationContext context,
-            IRescheduler rescheduler, ITestInvocationListener listener) throws Throwable {
+    private void performInvocation(
+            IConfiguration config,
+            IInvocationContext context,
+            IInvocationExecution invocationPath,
+            IRescheduler rescheduler,
+            ITestInvocationListener listener)
+            throws Throwable {
 
         boolean resumed = false;
         String bugreportName = null;
@@ -318,7 +200,7 @@ public class TestInvocation implements ITestInvocation {
         ((InvocationContext) context).lockAttributes();
         try {
             logDeviceBatteryLevel(context, "initial");
-            prepareAndRun(config, context, listener);
+            prepareAndRun(config, context, invocationPath, listener);
         } catch (BuildError e) {
             exception = e;
             CLog.w("Build failed on device '%s'. Reason: %s", e.getDeviceDescriptor(),
@@ -403,7 +285,7 @@ public class TestInvocation implements ITestInvocation {
             }
             mStatus = "tearing down";
             try {
-                doTeardown(context, config, exception);
+                invocationPath.doTeardown(context, config, exception);
             } catch (Throwable e) {
                 tearDownException = e;
                 CLog.e("Exception when tearing down invocation: %s", tearDownException.toString());
@@ -416,7 +298,7 @@ public class TestInvocation implements ITestInvocation {
             mStatus = "done running tests";
             try {
                 // Clean up host.
-                doCleanUp(context, config, exception);
+                invocationPath.doCleanUp(context, config, exception);
                 if (config.getProfiler() != null) {
                     config.getProfiler().reportAllMetrics(listener);
                 }
@@ -440,7 +322,7 @@ public class TestInvocation implements ITestInvocation {
                     listener.invocationEnded(elapsedTime);
                 }
             } finally {
-                cleanUpBuilds(context, config);
+                invocationPath.cleanUpBuilds(context, config);
             }
         }
         if (tearDownException != null) {
@@ -453,7 +335,10 @@ public class TestInvocation implements ITestInvocation {
 
     /** Do setup and run the tests */
     private void prepareAndRun(
-            IConfiguration config, IInvocationContext context, ITestInvocationListener listener)
+            IConfiguration config,
+            IInvocationContext context,
+            IInvocationExecution invocationPath,
+            ITestInvocationListener listener)
             throws Throwable {
         if (config.getCommandOptions().shouldUseSandboxing()) {
             // TODO: extract in new TestInvocation type.
@@ -463,154 +348,10 @@ public class TestInvocation implements ITestInvocation {
         }
         getRunUtil().allowInterrupt(true);
         logDeviceBatteryLevel(context, "initial -> setup");
-        doSetup(context, config, listener);
+        invocationPath.doSetup(context, config, listener);
         logDeviceBatteryLevel(context, "setup -> test");
-        runTests(context, config, listener);
+        invocationPath.runTests(context, config, listener);
         logDeviceBatteryLevel(context, "after test");
-    }
-
-    @Override
-    public void doSetup(
-            IInvocationContext context,
-            IConfiguration config,
-            final ITestInvocationListener listener)
-            throws TargetSetupError, BuildError, DeviceNotAvailableException {
-        long start = System.currentTimeMillis();
-        try {
-            // TODO: evaluate doing device setup in parallel
-            for (String deviceName : context.getDeviceConfigNames()) {
-                ITestDevice device = context.getDevice(deviceName);
-                CLog.d("Starting setup for device: '%s'", device.getSerialNumber());
-                if (device instanceof ITestLoggerReceiver) {
-                    ((ITestLoggerReceiver) context.getDevice(deviceName)).setTestLogger(listener);
-                }
-                if (!config.getCommandOptions().shouldSkipPreDeviceSetup()) {
-                    device.preInvocationSetup(context.getBuildInfo(deviceName));
-                }
-                for (ITargetPreparer preparer :
-                        config.getDeviceConfigByName(deviceName).getTargetPreparers()) {
-                    // do not call the preparer if it was disabled
-                    if (preparer.isDisabled()) {
-                        CLog.d("%s has been disabled. skipping.", preparer);
-                        continue;
-                    }
-                    if (preparer instanceof ITestLoggerReceiver) {
-                        ((ITestLoggerReceiver) preparer).setTestLogger(listener);
-                    }
-                    CLog.d(
-                            "starting preparer '%s' on device: '%s'",
-                            preparer, device.getSerialNumber());
-                    preparer.setUp(device, context.getBuildInfo(deviceName));
-                    CLog.d(
-                            "done with preparer '%s' on device: '%s'",
-                            preparer, device.getSerialNumber());
-                }
-                CLog.d("Done with setup of device: '%s'", device.getSerialNumber());
-            }
-            // After all the individual setup, make the multi-devices setup
-            for (IMultiTargetPreparer multipreparer : config.getMultiTargetPreparers()) {
-                // do not call the preparer if it was disabled
-                if (multipreparer.isDisabled()) {
-                    CLog.d("%s has been disabled. skipping.", multipreparer);
-                    continue;
-                }
-                if (multipreparer instanceof ITestLoggerReceiver) {
-                    ((ITestLoggerReceiver) multipreparer).setTestLogger(listener);
-                }
-                CLog.d("Starting multi target preparer '%s'", multipreparer);
-                multipreparer.setUp(context);
-                CLog.d("done with multi target preparer '%s'", multipreparer);
-            }
-            if (config.getProfiler() != null) {
-                config.getProfiler().setUp(context);
-            }
-        } finally {
-            // Note: These metrics are handled in a try in case of a kernel reset or device issue.
-            // Setup timing metric. It does not include flashing time on boot tests.
-            long setupDuration = System.currentTimeMillis() - start;
-            context.addInvocationTimingMetric(IInvocationContext.TimingEvent.SETUP, setupDuration);
-            CLog.d("Setup duration: %s'", TimeUtil.formatElapsedTime(setupDuration));
-            // Upload the setup logcat after setup is complete.
-            for (String deviceName : context.getDeviceConfigNames()) {
-                reportLogs(context.getDevice(deviceName), listener, Stage.SETUP);
-            }
-        }
-    }
-
-    @Override
-    public void doTeardown(IInvocationContext context, IConfiguration config, Throwable exception)
-            throws Throwable {
-        Throwable throwable = null;
-
-        List<IMultiTargetPreparer> multiPreparers = config.getMultiTargetPreparers();
-        ListIterator<IMultiTargetPreparer> iterator =
-                multiPreparers.listIterator(multiPreparers.size());
-        while (iterator.hasPrevious()) {
-            IMultiTargetPreparer multipreparer = iterator.previous();
-            CLog.d("Starting multi target tearDown '%s'", multipreparer);
-            multipreparer.tearDown(context, throwable);
-            CLog.d("Done with multi target tearDown '%s'", multipreparer);
-        }
-
-        // Clear wifi settings, to prevent wifi errors from interfering with teardown process.
-        for (String deviceName : context.getDeviceConfigNames()) {
-            ITestDevice device = context.getDevice(deviceName);
-            device.clearLastConnectedWifiNetwork();
-            List<ITargetPreparer> preparers =
-                    config.getDeviceConfigByName(deviceName).getTargetPreparers();
-            ListIterator<ITargetPreparer> itr = preparers.listIterator(preparers.size());
-            while (itr.hasPrevious()) {
-                ITargetPreparer preparer = itr.previous();
-                if(preparer instanceof ITargetCleaner) {
-                    ITargetCleaner cleaner = (ITargetCleaner) preparer;
-                    // do not call the cleaner if it was disabled
-                    if (cleaner.isDisabled()) {
-                        CLog.d("%s has been disabled. skipping.", cleaner);
-                        continue;
-                    }
-                    if (cleaner != null) {
-                        try {
-                            CLog.d("starting tearDown '%s' on device: '%s'", preparer,
-                                    device.getSerialNumber());
-                            cleaner.tearDown(device, context.getBuildInfo(deviceName), exception);
-                            CLog.d("done with tearDown '%s' on device: '%s'", preparer,
-                                    device.getSerialNumber());
-                        } catch (Throwable e) {
-                            // We catch it and rethrow later to allow each targetprep to be attempted.
-                            // Only the last one will be thrown but all should be logged.
-                            CLog.e("Deferring throw for: %s", e);
-                            throwable = e;
-                        }
-                    }
-                }
-            }
-            // Extra tear down step for the device
-            if (!config.getCommandOptions().shouldSkipPreDeviceSetup()) {
-                device.postInvocationTearDown();
-            }
-        }
-
-        if (throwable != null) {
-            throw throwable;
-        }
-    }
-
-    @Override
-    public void doCleanUp(IInvocationContext context, IConfiguration config, Throwable exception) {
-        for (String deviceName : context.getDeviceConfigNames()) {
-            List<ITargetPreparer> preparers =
-                    config.getDeviceConfigByName(deviceName).getTargetPreparers();
-            ListIterator<ITargetPreparer> itr = preparers.listIterator(preparers.size());
-            while (itr.hasPrevious()) {
-                ITargetPreparer preparer = itr.previous();
-                if (preparer instanceof IHostCleaner) {
-                    IHostCleaner cleaner = (IHostCleaner) preparer;
-                    if (cleaner != null) {
-                        cleaner.cleanUp(context.getBuildInfo(deviceName), exception);
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -765,48 +506,6 @@ public class TestInvocation implements ITestInvocation {
         return RunUtil.getDefault();
     }
 
-    /**
-     * Runs the test.
-     *
-     * @param context the {@link IInvocationContext} to run tests on
-     * @param config the {@link IConfiguration} to run
-     * @param listener the {@link ITestInvocationListener} of test results
-     * @throws DeviceNotAvailableException
-     */
-    @VisibleForTesting
-    void runTests(
-            IInvocationContext context, IConfiguration config, ITestInvocationListener listener)
-            throws DeviceNotAvailableException {
-        // Wrap collectors in each other and collection will be sequential
-        for (IMetricCollector collector : config.getMetricCollectors()) {
-            listener = collector.init(context, listener);
-        }
-
-        for (IRemoteTest test : config.getTests()) {
-            // For compatibility of those receivers, they are assumed to be single device alloc.
-            if (test instanceof IDeviceTest) {
-                ((IDeviceTest)test).setDevice(context.getDevices().get(0));
-            }
-            if (test instanceof IBuildReceiver) {
-                ((IBuildReceiver)test).setBuild(context.getBuildInfo(
-                        context.getDevices().get(0)));
-            }
-            if (test instanceof ISystemStatusCheckerReceiver) {
-                ((ISystemStatusCheckerReceiver) test).setSystemStatusChecker(
-                        config.getSystemStatusCheckers());
-            }
-
-            // TODO: consider adding receivers for only the list of ITestDevice and IBuildInfo.
-            if (test instanceof IMultiDeviceTest) {
-                ((IMultiDeviceTest)test).setDeviceInfos(context.getDeviceBuildMap());
-            }
-            if (test instanceof IInvocationContextReceiver) {
-                ((IInvocationContextReceiver)test).setInvocationContext(context);
-            }
-            test.run(listener);
-        }
-    }
-
     @Override
     public String toString() {
         return mStatus;
@@ -847,63 +546,37 @@ public class TestInvocation implements ITestInvocation {
         }
     }
 
-    @Override
-    public boolean fetchBuild(
+    /**
+     * Invoke {@link IInvocationExecution#fetchBuild(IInvocationContext, IConfiguration,
+     * IRescheduler, ITestInvocationListener)} and handles the output as well as failures.
+     *
+     * @param context the {@link IInvocationContext} of the invocation.
+     * @param config the {@link IConfiguration} of this test run.
+     * @param rescheduler the {@link IRescheduler}, for rescheduling portions of the invocation for
+     *     execution on another resource(s)
+     * @param listener the {@link ITestInvocation} to report build download failures.
+     * @param invocationPath the {@link IInvocationExecution} driving the invocation.
+     * @return True if we successfully downloaded the build, false otherwise.
+     * @throws DeviceNotAvailableException
+     */
+    private boolean invokeFetchBuild(
             IInvocationContext context,
             IConfiguration config,
             IRescheduler rescheduler,
-            ITestInvocationListener listener)
+            ITestInvocationListener listener,
+            IInvocationExecution invocationPath)
             throws DeviceNotAvailableException {
-        // If the invocation is currently sandboxed, builds have already been downloaded.
-        // TODO: refactor to be part of new TestInvocation type.
-        if (config.getConfigurationDescription().shouldUseSandbox()) {
-            return true;
-        }
-        String currentDeviceName = null;
         try {
-            updateInvocationContext(context, config);
-            // TODO: evaluate fetching build in parallel
-            for (String deviceName : context.getDeviceConfigNames()) {
-                currentDeviceName = deviceName;
-                IBuildInfo info = null;
-                ITestDevice device = context.getDevice(deviceName);
-                IDeviceConfiguration deviceConfig = config.getDeviceConfigByName(deviceName);
-                IBuildProvider provider = deviceConfig.getBuildProvider();
-                // Set the provider test tag
-                if (provider instanceof IInvocationContextReceiver) {
-                    ((IInvocationContextReceiver) provider).setInvocationContext(context);
-                }
-                // Get the build
-                if (provider instanceof IDeviceBuildProvider) {
-                    info = ((IDeviceBuildProvider) provider).getBuild(device);
-                } else {
-                    info = provider.getBuild();
-                }
-                if (info != null) {
-                    info.setDeviceSerial(device.getSerialNumber());
-                    context.addDeviceBuildInfo(deviceName, info);
-                    device.setRecovery(deviceConfig.getDeviceRecovery());
-                } else {
-                    mStatus = "(no build to test)";
-                    CLog.logAndDisplay(
-                            LogLevel.WARN,
-                            "No build found to test for device: %s",
-                            device.getSerialNumber());
-                    rescheduleTest(config, rescheduler);
-                    // Set the exit code to error
-                    setExitCode(
-                            ExitCode.NO_BUILD, new BuildRetrievalError("No build found to test."));
-                    return false;
-                }
-                // TODO: remove build update when reporting is done on context
-                updateBuild(info, config);
+            boolean res = invocationPath.fetchBuild(context, config, rescheduler, listener);
+            if (!res) {
+                mStatus = "(no build to test)";
+                rescheduleTest(config, rescheduler);
+                // Set the exit code to error
+                setExitCode(ExitCode.NO_BUILD, new BuildRetrievalError("No build found to test."));
+                return false;
             }
+            return res;
         } catch (BuildRetrievalError e) {
-            CLog.e(e);
-            if (currentDeviceName != null) {
-                context.addDeviceBuildInfo(currentDeviceName, e.getBuildInfo());
-                updateInvocationContext(context, config);
-            }
             // report an empty invocation, so this error is sent to listeners
             startInvocation(config, context, listener);
             // don't want to use #reportFailure, since that will call buildNotTested
@@ -914,25 +587,6 @@ public class TestInvocation implements ITestInvocation {
             reportHostLog(listener, config.getLogOutput());
             listener.invocationEnded(0);
             return false;
-        }
-        return true;
-    }
-
-    @Override
-    public void cleanUpBuilds(IInvocationContext context, IConfiguration config) {
-        // Ensure build infos are always cleaned up at the end of invocation.
-        for (String cleanUpDevice : context.getDeviceConfigNames()) {
-            if (context.getBuildInfo(cleanUpDevice) != null) {
-                try {
-                    config.getDeviceConfigByName(cleanUpDevice)
-                            .getBuildProvider()
-                            .cleanUp(context.getBuildInfo(cleanUpDevice));
-                } catch (RuntimeException e) {
-                    // We catch an simply log exception in cleanUp to avoid missing any final
-                    // step of the invocation.
-                    CLog.e(e);
-                }
-            }
         }
     }
 
@@ -953,6 +607,7 @@ public class TestInvocation implements ITestInvocation {
         }
         ITestInvocationListener listener =
                 new LogSaverResultForwarder(config.getLogSaver(), allListeners);
+        IInvocationExecution invocationPath = createInvocationExec();
         try {
             mStatus = "fetching build";
             config.getLogOutput().init();
@@ -976,7 +631,8 @@ public class TestInvocation implements ITestInvocation {
             }
 
             long start = System.currentTimeMillis();
-            boolean providerSuccess = fetchBuild(context, config, rescheduler, listener);
+            boolean providerSuccess =
+                    invokeFetchBuild(context, config, rescheduler, listener, invocationPath);
             long fetchBuildDuration = System.currentTimeMillis() - start;
             context.addInvocationTimingMetric(IInvocationContext.TimingEvent.FETCH_BUILD,
                     fetchBuildDuration);
@@ -985,7 +641,8 @@ public class TestInvocation implements ITestInvocation {
                 return;
             }
 
-            boolean sharding = shardConfig(config, context, rescheduler);
+            mStatus = "sharding";
+            boolean sharding = invocationPath.shardConfig(config, context, rescheduler);
             if (sharding) {
                 CLog.i("Invocation for %s has been sharded, rescheduling", context.getSerials());
                 return;
@@ -996,14 +653,14 @@ public class TestInvocation implements ITestInvocation {
                 return;
             }
 
-            performInvocation(config, context, rescheduler, listener);
+            performInvocation(config, context, invocationPath, rescheduler, listener);
             setExitCode(ExitCode.NO_ERROR, null);
         } catch (IOException e) {
             CLog.e(e);
         } finally {
 
             // Ensure build infos are always cleaned up at the end of invocation.
-            cleanUpBuilds(context, config);
+            invocationPath.cleanUpBuilds(context, config);
 
             // ensure we always deregister the logger
             for (String deviceName : context.getDeviceConfigNames()) {
@@ -1038,5 +695,9 @@ public class TestInvocation implements ITestInvocation {
     @Override
     public void notifyInvocationStopped() {
         mStopRequested = true;
+    }
+
+    public IInvocationExecution createInvocationExec() {
+        return new InvocationExecution();
     }
 }

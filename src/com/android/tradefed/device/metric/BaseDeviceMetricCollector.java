@@ -19,22 +19,24 @@ import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.invoker.IInvocationContext;
+import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
-
 import java.util.List;
 import java.util.Map;
 
 /**
  * Base implementation of {@link IMetricCollector} that allows to start and stop collection on
- * {@link #onTestRunStart(DeviceMetricData)} and {@link #onTestRunEnd(DeviceMetricData)}.
+ * {@link #onTestRunStart(DeviceMetricData)} and {@link #onTestRunEnd(DeviceMetricData, Map)}.
  */
 public class BaseDeviceMetricCollector implements IMetricCollector {
 
     private IInvocationContext mContext;
     private ITestInvocationListener mForwarder;
     private DeviceMetricData mRunData;
+    private DeviceMetricData mTestData;
+    private String mTag;
 
     @Override
     public ITestInvocationListener init(
@@ -45,17 +47,17 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
     }
 
     @Override
-    public List<ITestDevice> getDevices() {
+    public final List<ITestDevice> getDevices() {
         return mContext.getDevices();
     }
 
     @Override
-    public List<IBuildInfo> getBuildInfos() {
+    public final List<IBuildInfo> getBuildInfos() {
         return mContext.getBuildInfos();
     }
 
     @Override
-    public ITestInvocationListener getInvocationListener() {
+    public final ITestInvocationListener getInvocationListener() {
         return mForwarder;
     }
 
@@ -65,7 +67,19 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
     }
 
     @Override
-    public void onTestRunEnd(DeviceMetricData runData) {
+    public void onTestRunEnd(
+            DeviceMetricData runData, final Map<String, String> currentRunMetrics) {
+        // Does nothing
+    }
+
+    @Override
+    public void onTestStart(DeviceMetricData testData) {
+        // Does nothing
+    }
+
+    @Override
+    public void onTestEnd(
+            DeviceMetricData testData, final Map<String, String> currentTestCaseMetrics) {
         // Does nothing
     }
 
@@ -95,7 +109,12 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
     @Override
     public final void testRunStarted(String runName, int testCount) {
         mRunData = new DeviceMetricData();
-        onTestRunStart(mRunData);
+        try {
+            onTestRunStart(mRunData);
+        } catch (Throwable t) {
+            // Prevent exception from messing up the status reporting.
+            CLog.e(t);
+        }
         mForwarder.testRunStarted(runName, testCount);
     }
 
@@ -111,8 +130,13 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
 
     @Override
     public final void testRunEnded(long elapsedTime, Map<String, String> runMetrics) {
-        onTestRunEnd(mRunData);
-        mRunData.addToMetrics(runMetrics);
+        try {
+            onTestRunEnd(mRunData, runMetrics);
+            mRunData.addToMetrics(runMetrics);
+        } catch (Throwable t) {
+            // Prevent exception from messing up the status reporting.
+            CLog.e(t);
+        }
         mForwarder.testRunEnded(elapsedTime, runMetrics);
     }
 
@@ -124,6 +148,13 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
 
     @Override
     public final void testStarted(TestIdentifier test, long startTime) {
+        mTestData = new DeviceMetricData();
+        try {
+            onTestStart(mTestData);
+        } catch (Throwable t) {
+            // Prevent exception from messing up the status reporting.
+            CLog.e(t);
+        }
         mForwarder.testStarted(test, startTime);
     }
 
@@ -140,6 +171,13 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
     @Override
     public final void testEnded(
             TestIdentifier test, long endTime, Map<String, String> testMetrics) {
+        try {
+            onTestEnd(mTestData, testMetrics);
+            mTestData.addToMetrics(testMetrics);
+        } catch (Throwable t) {
+            // Prevent exception from messing up the status reporting.
+            CLog.e(t);
+        }
         mForwarder.testEnded(test, endTime, testMetrics);
     }
 
@@ -151,5 +189,24 @@ public class BaseDeviceMetricCollector implements IMetricCollector {
     @Override
     public final void testIgnored(TestIdentifier test) {
         mForwarder.testIgnored(test);
+    }
+
+    /**
+     * Sets the {@code mTag} of the collector. It can be used to specify the interval of the
+     * collector.
+     *
+     * @param tag the unique identifier of the collector.
+     */
+    public void setTag(String tag) {
+        mTag = tag;
+    }
+
+    /**
+     * Returns the identifier {@code mTag} of the collector.
+     *
+     * @return mTag, the unique identifier of the collector.
+     */
+    public String getTag() {
+        return mTag;
     }
 }
