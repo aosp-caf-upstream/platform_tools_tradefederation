@@ -66,6 +66,7 @@ import com.android.tradefed.device.WaitDeviceRecoveryTest;
 import com.android.tradefed.device.WifiHelperTest;
 import com.android.tradefed.device.metric.AtraceCollectorTest;
 import com.android.tradefed.device.metric.BaseDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.DeviceMetricDataTest;
 import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduleMultipleDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduledDeviceMetricCollectorTest;
@@ -102,6 +103,7 @@ import com.android.tradefed.result.InvocationFailureEmailResultReporterTest;
 import com.android.tradefed.result.InvocationToJUnitResultForwarderTest;
 import com.android.tradefed.result.JUnitToInvocationResultForwarderTest;
 import com.android.tradefed.result.LogFileSaverTest;
+import com.android.tradefed.result.MetricsXMLResultReporterTest;
 import com.android.tradefed.result.SnapshotInputStreamSourceTest;
 import com.android.tradefed.result.SubprocessResultsReporterTest;
 import com.android.tradefed.result.TestFailureEmailResultReporterTest;
@@ -163,7 +165,6 @@ import com.android.tradefed.testtype.InstalledInstrumentationsTestTest;
 import com.android.tradefed.testtype.InstrumentationFileTestTest;
 import com.android.tradefed.testtype.InstrumentationSerialTestTest;
 import com.android.tradefed.testtype.InstrumentationTestTest;
-import com.android.tradefed.testtype.JackCodeCoverageTestTest;
 import com.android.tradefed.testtype.JacocoCodeCoverageTestTest;
 import com.android.tradefed.testtype.NativeBenchmarkTestParserTest;
 import com.android.tradefed.testtype.NativeBenchmarkTestTest;
@@ -323,6 +324,7 @@ import org.junit.runners.Suite.SuiteClasses;
     // device.metric
     AtraceCollectorTest.class,
     BaseDeviceMetricCollectorTest.class,
+    DeviceMetricDataTest.class,
     FilePullerDeviceMetricCollectorTest.class,
     ScheduledDeviceMetricCollectorTest.class,
     ScheduleMultipleDeviceMetricCollectorTest.class,
@@ -370,6 +372,7 @@ import org.junit.runners.Suite.SuiteClasses;
     InvocationToJUnitResultForwarderTest.class,
     JUnitToInvocationResultForwarderTest.class,
     LogFileSaverTest.class,
+    MetricsXMLResultReporterTest.class,
     SnapshotInputStreamSourceTest.class,
     SubprocessResultsReporterTest.class,
     TestSummaryTest.class,
@@ -442,7 +445,6 @@ import org.junit.runners.Suite.SuiteClasses;
     InstrumentationSerialTestTest.class,
     InstrumentationFileTestTest.class,
     InstrumentationTestTest.class,
-    JackCodeCoverageTestTest.class,
     JacocoCodeCoverageTestTest.class,
     NativeBenchmarkTestParserTest.class,
     NativeBenchmarkTestTest.class,
