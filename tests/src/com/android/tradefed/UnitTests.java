@@ -67,9 +67,15 @@ import com.android.tradefed.device.WifiHelperTest;
 import com.android.tradefed.device.metric.AtraceCollectorTest;
 import com.android.tradefed.device.metric.BaseDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.DeviceMetricDataTest;
+import com.android.tradefed.device.metric.MemInfoMetricCollectorTest;
 import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.BuddyInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.IonHeapInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.GfxInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.PagetypeInfoMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduleMultipleDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduledDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.TraceMetricCollectorTest;
 import com.android.tradefed.invoker.InvocationContextTest;
 import com.android.tradefed.invoker.InvocationExecutionTest;
 import com.android.tradefed.invoker.ShardListenerTest;
@@ -83,13 +89,6 @@ import com.android.tradefed.log.FileLoggerTest;
 import com.android.tradefed.log.HistoryLoggerTest;
 import com.android.tradefed.log.LogRegistryTest;
 import com.android.tradefed.log.TerribleFailureEmailHandlerTest;
-import com.android.tradefed.profiler.AggregatingProfilerTest;
-import com.android.tradefed.profiler.MetricOutputDataTest;
-import com.android.tradefed.profiler.recorder.NumericAggregateFunctionTest;
-import com.android.tradefed.profiler.recorder.TraceMetricTest;
-import com.android.tradefed.profiler.recorder.TraceMetricsRecorderTest;
-import com.android.tradefed.profiler.recorder.TraceParserTest;
-import com.android.tradefed.result.AggregatingProfilerListenerTest;
 import com.android.tradefed.result.BugreportCollectorTest;
 import com.android.tradefed.result.CollectingTestListenerTest;
 import com.android.tradefed.result.ConsoleResultReporterTest;
@@ -106,9 +105,12 @@ import com.android.tradefed.result.LogFileSaverTest;
 import com.android.tradefed.result.MetricsXMLResultReporterTest;
 import com.android.tradefed.result.SnapshotInputStreamSourceTest;
 import com.android.tradefed.result.SubprocessResultsReporterTest;
+import com.android.tradefed.result.TestDescriptionTest;
 import com.android.tradefed.result.TestFailureEmailResultReporterTest;
+import com.android.tradefed.result.TestRunResultTest;
 import com.android.tradefed.result.TestSummaryTest;
 import com.android.tradefed.result.XmlResultReporterTest;
+import com.android.tradefed.result.suite.FormattedGeneratorReporterTest;
 import com.android.tradefed.sandbox.SandboxConfigDumpTest;
 import com.android.tradefed.sandbox.SandboxConfigUtilTest;
 import com.android.tradefed.sandbox.SandboxInvocationRunnerTest;
@@ -177,8 +179,10 @@ import com.android.tradefed.testtype.TfTestLauncherTest;
 import com.android.tradefed.testtype.VersionedTfLauncherTest;
 import com.android.tradefed.testtype.host.CoverageMeasurementForwarderTest;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4TestTest;
+import com.android.tradefed.testtype.junit4.LongevityHostRunnerTest;
 import com.android.tradefed.testtype.python.PythonBinaryHostTestTest;
 import com.android.tradefed.testtype.suite.AtestRunnerTest;
+import com.android.tradefed.testtype.suite.BaseTestSuiteTest;
 import com.android.tradefed.testtype.suite.ITestSuiteIntegrationTest;
 import com.android.tradefed.testtype.suite.ITestSuiteMultiTest;
 import com.android.tradefed.testtype.suite.ITestSuiteTest;
@@ -186,6 +190,7 @@ import com.android.tradefed.testtype.suite.ModuleDefinitionTest;
 import com.android.tradefed.testtype.suite.ModuleListenerTest;
 import com.android.tradefed.testtype.suite.ModuleMergerTest;
 import com.android.tradefed.testtype.suite.ModuleSplitterTest;
+import com.android.tradefed.testtype.suite.SuiteModuleLoaderTest;
 import com.android.tradefed.testtype.suite.TestFailureListenerTest;
 import com.android.tradefed.testtype.suite.TestSuiteInfoTest;
 import com.android.tradefed.testtype.suite.TfSuiteRunnerTest;
@@ -247,7 +252,6 @@ import com.android.tradefed.util.net.XmlRpcHelperTest;
 import com.android.tradefed.util.sl4a.Sl4aClientTest;
 import com.android.tradefed.util.sl4a.Sl4aEventDispatcherTest;
 import com.android.tradefed.util.xml.AndroidManifestWriterTest;
-
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -324,10 +328,16 @@ import org.junit.runners.Suite.SuiteClasses;
     // device.metric
     AtraceCollectorTest.class,
     BaseDeviceMetricCollectorTest.class,
+    BuddyInfoMetricCollectorTest.class,
     DeviceMetricDataTest.class,
     FilePullerDeviceMetricCollectorTest.class,
+    GfxInfoMetricCollectorTest.class,
+    IonHeapInfoMetricCollectorTest.class,
+    MemInfoMetricCollectorTest.class,
+    PagetypeInfoMetricCollectorTest.class,
     ScheduledDeviceMetricCollectorTest.class,
     ScheduleMultipleDeviceMetricCollectorTest.class,
+    TraceMetricCollectorTest.class,
 
     // invoker
     InvocationContextTest.class,
@@ -348,19 +358,10 @@ import org.junit.runners.Suite.SuiteClasses;
     LogRegistryTest.class,
     TerribleFailureEmailHandlerTest.class,
 
-    // profiler subdirs
-    AggregatingProfilerTest.class,
-    MetricOutputDataTest.class,
-    NumericAggregateFunctionTest.class,
-    TraceMetricsRecorderTest.class,
-    TraceMetricTest.class,
-    TraceParserTest.class,
-
     // result
-    AggregatingProfilerListenerTest.class,
     BugreportCollectorTest.class,
-    ConsoleResultReporterTest.class,
     CollectingTestListenerTest.class,
+    ConsoleResultReporterTest.class,
     DeviceFileReporterTest.class,
     DeviceUnavailEmailResultReporterTest.class,
     EmailResultReporterTest.class,
@@ -375,9 +376,14 @@ import org.junit.runners.Suite.SuiteClasses;
     MetricsXMLResultReporterTest.class,
     SnapshotInputStreamSourceTest.class,
     SubprocessResultsReporterTest.class,
-    TestSummaryTest.class,
+    TestDescriptionTest.class,
     TestFailureEmailResultReporterTest.class,
+    TestRunResultTest.class,
+    TestSummaryTest.class,
     XmlResultReporterTest.class,
+
+    // result.suite
+    FormattedGeneratorReporterTest.class,
 
     // targetprep
     AllTestAppsInstallSetupTest.class,
@@ -458,12 +464,14 @@ import org.junit.runners.Suite.SuiteClasses;
 
     // testtype/junit4
     BaseHostJUnit4TestTest.class,
+    LongevityHostRunnerTest.class,
 
     // testtype/python
     PythonBinaryHostTestTest.class,
 
     // testtype/suite
     AtestRunnerTest.class,
+    BaseTestSuiteTest.class,
     ITestSuiteIntegrationTest.class,
     ITestSuiteMultiTest.class,
     ITestSuiteTest.class,
@@ -471,6 +479,7 @@ import org.junit.runners.Suite.SuiteClasses;
     ModuleListenerTest.class,
     ModuleMergerTest.class,
     ModuleSplitterTest.class,
+    SuiteModuleLoaderTest.class,
     TestFailureListenerTest.class,
     TestSuiteInfoTest.class,
     TfSuiteRunnerTest.class,
