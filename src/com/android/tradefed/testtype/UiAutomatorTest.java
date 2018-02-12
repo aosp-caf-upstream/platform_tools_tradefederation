@@ -18,7 +18,6 @@ package com.android.tradefed.testtype;
 
 import com.android.ddmlib.FileListingService;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
-import com.android.ddmlib.testrunner.ITestRunListener;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.config.Option;
@@ -28,6 +27,7 @@ import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.FileInputStreamSource;
 import com.android.tradefed.result.ITestInvocationListener;
+import com.android.tradefed.result.ITestLifeCycleReceiver;
 import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.util.FileUtil;
@@ -68,7 +68,7 @@ public class UiAutomatorTest implements IRemoteTest, IDeviceTest, ITestFilterRec
 
     private ITestDevice mDevice = null;
     private IRemoteAndroidTestRunner mRunner = null;
-    protected Collection<ITestRunListener> mListeners = new ArrayList<ITestRunListener>();
+    protected Collection<ITestLifeCycleReceiver> mListeners = new ArrayList<>();
 
     @Option(name = "jar-path", description = "path to jars containing UI Automator test cases and"
             + " dependencies; May be repeated. " +
@@ -88,9 +88,9 @@ public class UiAutomatorTest implements IRemoteTest, IDeviceTest, ITestFilterRec
     private Map<String, String> mArgMap = new LinkedHashMap<String, String>();
 
     @Option(name = "timeout",
-            description = "Aborts the test run if any test takes longer than the specified number "
-                    + "of milliseconds. For no timeout, set to 0.")
-    private int mTestTimeout = 30 * 60 * 1000;  // default to 30 minutes
+            description = "Aborts the test run if any test takes longer than the specified "
+                    + "timeout. For no timeout, set to 0.", isTimeVal = true)
+    private long mTestTimeout = 30 * 60 * 1000; // default to 30 minutes
 
     @Option(name = "capture-logs", description =
             "capture bugreport and screenshot as specified.")
