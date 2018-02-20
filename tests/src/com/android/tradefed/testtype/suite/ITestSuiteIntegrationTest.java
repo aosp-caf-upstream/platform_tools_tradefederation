@@ -20,14 +20,12 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.build.BuildInfo;
 import com.android.tradefed.build.IBuildInfo;
+import com.android.tradefed.config.ConfigurationDef;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.config.ConfigurationFactory;
-import com.android.tradefed.config.DeviceConfigurationHolder;
 import com.android.tradefed.config.IConfiguration;
-import com.android.tradefed.config.IDeviceConfiguration;
 import com.android.tradefed.config.OptionSetter;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -40,6 +38,7 @@ import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.ILogSaver;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ResultForwarder;
+import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.suite.SuiteResultReporter;
 import com.android.tradefed.suite.checker.ISystemStatusChecker;
 import com.android.tradefed.suite.checker.ISystemStatusCheckerReceiver;
@@ -136,8 +135,8 @@ public class ITestSuiteIntegrationTest {
         mMockBuildInfo = mock(IBuildInfo.class);
         mListener = new SuiteResultReporter();
         mContext = new InvocationContext();
-        mContext.addAllocatedDevice("device", mMockDevice);
-        mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+        mContext.addAllocatedDevice(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockDevice);
+        mContext.addDeviceBuildInfo(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockBuildInfo);
 
         doReturn("serial").when(mMockDevice).getSerialNumber();
     }
@@ -151,7 +150,7 @@ public class ITestSuiteIntegrationTest {
     public static class TestSuiteFolderImpl extends ITestSuite {
 
         private File mConfigFolder;
-        private List<TestIdentifier> mTests;
+        private List<TestDescription> mTests;
 
         public TestSuiteFolderImpl() {}
 
@@ -159,7 +158,7 @@ public class ITestSuiteIntegrationTest {
             mConfigFolder = configFolder;
         }
 
-        public TestSuiteFolderImpl(File configFolder, List<TestIdentifier> tests) {
+        public TestSuiteFolderImpl(File configFolder, List<TestDescription> tests) {
             this(configFolder);
             mTests = tests;
         }
@@ -395,13 +394,11 @@ public class ITestSuiteIntegrationTest {
         suite.setInvocationContext(mContext);
         config.setTestInvocationListener(mListener);
         config.getCommandOptions().setShardCount(5);
-        IDeviceConfiguration deviceConfig = new DeviceConfigurationHolder("device");
-        config.setDeviceConfig(deviceConfig);
         // invocation context
         mMockBuildInfo = new BuildInfo("9999", "test-target");
         mContext = new InvocationContext();
-        mContext.addAllocatedDevice("device", mMockDevice);
-        mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+        mContext.addAllocatedDevice(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockDevice);
+        mContext.addDeviceBuildInfo(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockBuildInfo);
 
         StrictShardHelper helper = new StrictShardHelper();
         helper.shardConfig(config, mContext, new TestShardRescheduler());
@@ -434,13 +431,11 @@ public class ITestSuiteIntegrationTest {
         suite.setInvocationContext(mContext);
         config.setTestInvocationListener(mListener);
         config.getCommandOptions().setShardCount(5);
-        IDeviceConfiguration deviceConfig = new DeviceConfigurationHolder("device");
-        config.setDeviceConfig(deviceConfig);
         // invocation context
         mMockBuildInfo = new BuildInfo("9999", "test-target");
         mContext = new InvocationContext();
-        mContext.addAllocatedDevice("device", mMockDevice);
-        mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+        mContext.addAllocatedDevice(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockDevice);
+        mContext.addDeviceBuildInfo(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockBuildInfo);
 
         StrictShardHelper helper = new StrictShardHelper();
         TestParallelShardRescheduler rescheduler = new TestParallelShardRescheduler();
@@ -480,13 +475,11 @@ public class ITestSuiteIntegrationTest {
         config.getCommandOptions().setShardIndex(0);
         OptionSetter setter = new OptionSetter(config.getCommandOptions());
         setter.setOptionValue("disable-strict-sharding", "true");
-        IDeviceConfiguration deviceConfig = new DeviceConfigurationHolder("device");
-        config.setDeviceConfig(deviceConfig);
         // invocation context
         mMockBuildInfo = new BuildInfo("9999", "test-target");
         mContext = new InvocationContext();
-        mContext.addAllocatedDevice("device", mMockDevice);
-        mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+        mContext.addAllocatedDevice(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockDevice);
+        mContext.addDeviceBuildInfo(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockBuildInfo);
 
         StrictShardHelper helper = new StrictShardHelper();
         helper.shardConfig(config, mContext, null);
@@ -542,10 +535,10 @@ public class ITestSuiteIntegrationTest {
     }
 
     private void helperTestShardIndex(int shardCount, int shardIndex) throws Exception {
-        List<TestIdentifier> tests = new ArrayList<>();
-        tests.add(new TestIdentifier("class1", "test1"));
-        tests.add(new TestIdentifier("class1", "test2"));
-        tests.add(new TestIdentifier("class1", "test3"));
+        List<TestDescription> tests = new ArrayList<>();
+        tests.add(new TestDescription("class1", "test1"));
+        tests.add(new TestDescription("class1", "test2"));
+        tests.add(new TestDescription("class1", "test3"));
         createConfig(mTestConfigFolder, "module1", TEST_STUB, true, true, false, false, false);
         ITestSuite suite = new TestSuiteFolderImpl(mTestConfigFolder, tests);
         IConfiguration config =
@@ -561,13 +554,11 @@ public class ITestSuiteIntegrationTest {
         config.getCommandOptions().setShardIndex(shardIndex);
         OptionSetter setter = new OptionSetter(config.getCommandOptions());
         setter.setOptionValue("disable-strict-sharding", "true");
-        IDeviceConfiguration deviceConfig = new DeviceConfigurationHolder("device");
-        config.setDeviceConfig(deviceConfig);
         // invocation context
         mMockBuildInfo = new BuildInfo("9999", "test-target");
         mContext = new InvocationContext();
-        mContext.addAllocatedDevice("device", mMockDevice);
-        mContext.addDeviceBuildInfo("device", mMockBuildInfo);
+        mContext.addAllocatedDevice(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockDevice);
+        mContext.addDeviceBuildInfo(ConfigurationDef.DEFAULT_DEVICE_NAME, mMockBuildInfo);
 
         StrictShardHelper helper = new StrictShardHelper();
         helper.shardConfig(config, mContext, null);
