@@ -17,10 +17,10 @@ package com.android.tradefed.result.suite;
 
 import com.android.ddmlib.Log.LogLevel;
 import com.android.ddmlib.testrunner.TestResult.TestStatus;
-import com.android.ddmlib.testrunner.TestRunResult;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.CollectingTestListener;
+import com.android.tradefed.result.TestRunResult;
 import com.android.tradefed.result.TestSummary;
 import com.android.tradefed.result.TestSummary.Type;
 import com.android.tradefed.result.TestSummary.TypedString;
@@ -118,7 +118,7 @@ public class SuiteResultReporter extends CollectingTestListener {
     @Override
     public void invocationEnded(long elapsedTime) {
         super.invocationEnded(elapsedTime);
-        mElapsedTime = System.currentTimeMillis() - mStartTime;
+        mElapsedTime = elapsedTime;
 
         // finalize and print results - general
         Collection<TestRunResult> results = getRunResults();
