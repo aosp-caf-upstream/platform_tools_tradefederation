@@ -29,9 +29,10 @@ import com.android.tradefed.log.ILogRegistry.EventType;
 import com.android.tradefed.log.ITestLogger;
 import com.android.tradefed.log.LogRegistry;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.result.ILogSaver;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ITestLoggerReceiver;
-import com.android.tradefed.result.ResultForwarder;
+import com.android.tradefed.result.LogSaverResultForwarder;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.TestResult;
 import com.android.tradefed.result.TestRunResult;
@@ -60,9 +61,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Container for the test run configuration. This class is an helper to prepare and run the tests.
@@ -70,12 +73,23 @@ import java.util.Map;
 public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestCollector {
 
     /** key names used for saving module info into {@link IInvocationContext} */
+    /**
+     * Module name is the base name associated with the module, usually coming from the Xml TF
+     * config file the module was loaded from.
+     */
     public static final String MODULE_NAME = "module-name";
     public static final String MODULE_ABI = "module-abi";
+    /**
+     * Module ID the name that will be used to identify uniquely the module during testRunStart. It
+     * will usually be a combination of MODULE_ABI + MODULE_NAME.
+     */
+    public static final String MODULE_ID = "module-id";
+
     public static final String MODULE_CONTROLLER = "module_controller";
 
     private final IInvocationContext mModuleInvocationContext;
     private final IConfiguration mModuleConfiguration;
+    private ILogSaver mLogSaver;
 
     private final String mId;
     private Collection<IRemoteTest> mTests = null;
@@ -97,6 +111,8 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
     private long mElapsedTearDown = 0l;
 
     private long mElapsedTest = 0l;
+
+    private Set<String> mRunnerWhiteList = new HashSet<>();
 
     public static final String PREPARATION_TIME = "PREP_TIME";
     public static final String TEAR_DOWN_TIME = "TEARDOWN_TIME";
@@ -122,12 +138,18 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
         ConfigurationDescriptor configDescriptor = moduleConfig.getConfigurationDescription();
         mModuleInvocationContext = new InvocationContext();
         mModuleInvocationContext.setConfigurationDescriptor(configDescriptor);
-        mModuleInvocationContext.addInvocationAttribute(MODULE_NAME, mId);
+
         // If available in the suite, add the abi name
         if (configDescriptor.getAbi() != null) {
             mModuleInvocationContext.addInvocationAttribute(
                     MODULE_ABI, configDescriptor.getAbi().getName());
         }
+        if (configDescriptor.getModuleName() != null) {
+            mModuleInvocationContext.addInvocationAttribute(
+                    MODULE_NAME, configDescriptor.getModuleName());
+        }
+        // If there is no specific abi, module-id should be module-name
+        mModuleInvocationContext.addInvocationAttribute(MODULE_ID, mId);
 
         mMultiPreparers.addAll(multiPreparers);
         mPreparersPerDevice = preparersPerDevice;
@@ -211,6 +233,11 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
     /** Inject the List of {@link IMetricCollector} to be used by the module. */
     public void setMetricCollectors(List<IMetricCollector> collectors) {
         mRunMetricCollectors = collectors;
+    }
+
+    /** Pass the invocation log saver to the module so it can use it if necessary. */
+    public void setLogSaver(ILogSaver logSaver) {
+        mLogSaver = logSaver;
     }
 
     /**
@@ -311,6 +338,13 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                 if (test == null) {
                     return;
                 }
+                if (!mRunnerWhiteList.isEmpty()
+                        && !mRunnerWhiteList.contains(test.getClass().getName())) {
+                    CLog.d(
+                            "Runner %s was skipped by the runner whitelist.",
+                            test.getClass().getName());
+                    continue;
+                }
 
                 if (test instanceof IBuildReceiver) {
                     ((IBuildReceiver) test).setBuild(mBuild);
@@ -347,7 +381,8 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                 }
                 currentTestListener.add(moduleListener);
 
-                ITestInvocationListener runListener = new ResultForwarder(currentTestListener);
+                ITestInvocationListener runListener =
+                        new LogSaverResultForwarder(mLogSaver, currentTestListener);
                 if (mRunMetricCollectors != null) {
                     // Module only init the collectors here to avoid triggering the collectors when
                     // replaying the cached events at the end. This ensure metrics are capture at
@@ -631,6 +666,11 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
     /** Returns the {@link IInvocationContext} associated with the module. */
     public IInvocationContext getModuleInvocationContext() {
         return mModuleInvocationContext;
+    }
+
+    /** Sets of runner that are allowed to run. */
+    public void setRunnerWhiteList(Set<String> runners) {
+        mRunnerWhiteList.addAll(runners);
     }
 
     /**

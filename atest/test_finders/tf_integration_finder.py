@@ -20,7 +20,6 @@ import copy
 import logging
 import os
 import re
-import subprocess
 import xml.etree.ElementTree as ElementTree
 
 # pylint: disable=import-error
@@ -129,13 +128,9 @@ class TFIntegrationFinder(test_finder_base.TestFinderBase):
         """Search integration dirs for name and return full path."""
         for integration_dir in self.integration_dirs:
             abs_path = os.path.join(self.root_dir, integration_dir)
-            find_cmd = test_finder_utils.FIND_CMDS[
-                test_finder_utils.FIND_REFERENCE_TYPE.INTEGRATION] % (abs_path,
-                                                                      name)
-            logging.debug('Executing: %s', find_cmd)
-            out = subprocess.check_output(find_cmd, shell=True)
-            logging.debug('Integration - Find Cmd Out: %s', out)
-            test_file = test_finder_utils.extract_test_path(out)
+            test_file = test_finder_utils.run_find_cmd(
+                test_finder_utils.FIND_REFERENCE_TYPE.INTEGRATION,
+                abs_path, name)
             if test_file:
                 return test_file
         return None
@@ -149,21 +144,9 @@ class TFIntegrationFinder(test_finder_base.TestFinderBase):
         Returns:
             A populated TestInfo namedtuple if test found, else None
         """
-        filters = frozenset()
+        class_name = None
         if ':' in name:
             name, class_name = name.split(':')
-            class_name, methods = test_finder_utils.split_methods(class_name)
-            if '.' not in class_name:
-                logging.warn('Looking up fully qualified class name for: %s.'
-                             'Improve speed by using fully qualified names.',
-                             class_name)
-                path = test_finder_utils.find_class_file(class_name,
-                                                         self.root_dir)
-                if not path:
-                    return None
-                class_name = test_finder_utils.get_fully_qualified_class_name(
-                    path)
-            filters = frozenset([test_info.TestFilter(class_name, methods)])
         test_file = self._search_integration_dirs(name)
         if test_file is None:
             return None
@@ -180,6 +163,21 @@ class TFIntegrationFinder(test_finder_base.TestFinderBase):
                          'did you mean: %s?', name, int_name)
             return None
         rel_config = os.path.relpath(test_file, self.root_dir)
+
+        filters = frozenset()
+        if class_name:
+            class_name, methods = test_finder_utils.split_methods(class_name)
+            if '.' not in class_name:
+                logging.warn('Looking up fully qualified class name for: %s.'
+                             'Improve speed by using fully qualified names.',
+                             class_name)
+                path = test_finder_utils.find_class_file(self.root_dir,
+                                                         class_name)
+                if not path:
+                    return None
+                class_name = test_finder_utils.get_fully_qualified_class_name(
+                    path)
+            filters = frozenset([test_info.TestFilter(class_name, methods)])
         return test_info.TestInfo(
             test_name=name,
             test_runner=self._TEST_RUNNER,

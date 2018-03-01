@@ -27,6 +27,7 @@ import test_info
 import test_finder_base
 import test_finder_utils
 from test_runners import atest_tf_test_runner
+from test_runners import vts_tf_test_runner
 
 # Parse package name from the package declaration line of a java file.
 # Group matches "foo.bar" of line "package foo.bar;"
@@ -44,6 +45,7 @@ class ModuleFinder(test_finder_base.TestFinderBase):
     """Module finder class."""
     NAME = 'MODULE'
     _TEST_RUNNER = atest_tf_test_runner.AtestTradefedTestRunner.NAME
+    _VTS_TEST_RUNNER = vts_tf_test_runner.VtsTradefedTestRunner.NAME
 
     def __init__(self, module_info=None):
         super(ModuleFinder, self).__init__()
@@ -58,6 +60,36 @@ class ModuleFinder(test_finder_base.TestFinderBase):
         suites = [suite for suite in suites if suite not in _SUITES_TO_IGNORE]
         return len(suites) == 1 and 'vts' in suites
 
+    def _update_to_vts_test_info(self, test):
+        """Fill in the fields with vts specific info.
+
+        We need to update the runner to use the vts runner and also find the
+        test specific depedencies
+
+        Args:
+            test: TestInfo to update with vts specific details.
+
+        Return:
+            TestInfo that is ready for the vts test runner.
+        """
+        test.test_runner = self._VTS_TEST_RUNNER
+        config_file = os.path.join(self.root_dir,
+                                   test.data[constants.TI_REL_CONFIG])
+        # Need to get out dir (special logic is to account for custom out dirs).
+        # The out dir is used to construct the build targets for the test deps.
+        out_dir = os.environ.get(constants.ANDROID_HOST_OUT)
+        custom_out_dir = os.environ.get(constants.ANDROID_OUT_DIR)
+        # If we're not an absolute custom out dir, get relative out dir path.
+        if custom_out_dir is None or not os.path.isabs(custom_out_dir):
+            out_dir = os.path.relpath(out_dir, self.root_dir)
+        vts_out_dir = os.path.join(out_dir, 'vts', 'android-vts', 'testcases')
+
+        # Add in vts test build targets.
+        test.build_targets = test_finder_utils.get_targets_from_vts_xml(
+            config_file, vts_out_dir, self.module_info)
+        test.build_targets.add('vts-test-core')
+        return test
+
     def _process_test_info(self, test):
         """Process the test info and return some fields updated/changed.
 
@@ -65,18 +97,14 @@ class ModuleFinder(test_finder_base.TestFinderBase):
         update the test_info fields (like test_runner) appropriately.
 
         Args:
-            test_info: TestInfo that has been filled out by a find method.
+            test: TestInfo that has been filled out by a find method.
 
         Return:
             TestInfo that has been modified as needed.
-
-        Raises:
-            atest_error.UnsupportedModuleTestError if the test found is a vts
-            test.
         """
         # Check if this is only a vts module.
         if self._is_vts_module(test.test_name):
-            raise atest_error.UnsupportedModuleTestError('no support for vts tests')
+            return self._update_to_vts_test_info(test)
         return test
 
     def _is_auto_gen_test_config(self, module_name):
@@ -155,12 +183,12 @@ class ModuleFinder(test_finder_base.TestFinderBase):
                                       os.path.dirname(rel_config))
         else:
             search_dir = self.root_dir
-        test_path = test_finder_utils.find_class_file(class_name, search_dir)
+        test_path = test_finder_utils.find_class_file(search_dir, class_name)
         if not test_path and rel_config:
             logging.info('Did not find class (%s) under module path (%s), '
                          'researching from repo root.', class_name, rel_config)
-            test_path = test_finder_utils.find_class_file(class_name,
-                                                          self.root_dir)
+            test_path = test_finder_utils.find_class_file(self.root_dir,
+                                                          class_name)
         if not test_path:
             return None
         full_class_name = test_finder_utils.get_fully_qualified_class_name(
@@ -199,6 +227,66 @@ class ModuleFinder(test_finder_base.TestFinderBase):
             return None
         return self.find_test_by_class_name(
             class_name, module_info.test_name,
+            module_info.data.get(constants.TI_REL_CONFIG))
+
+    def find_test_by_package_name(self, package, module_name=None,
+                                  rel_config=None):
+        """Find the test info given a PACKAGE string.
+
+        Args:
+            package: A string of the package name.
+            module_name: Optional. A string of the module name.
+            ref_config: Optional. A string of rel path of config.
+
+        Returns:
+            A populated TestInfo namedtuple if found, else None.
+        """
+        _, methods = test_finder_utils.split_methods(package)
+        if methods:
+            raise atest_error.MethodWithoutClassError('Method filtering '
+                                                      'requires class')
+        # Confirm that packages exists and get user input for multiples.
+        if rel_config:
+            search_dir = os.path.join(self.root_dir,
+                                      os.path.dirname(rel_config))
+        else:
+            search_dir = self.root_dir
+        package_path = test_finder_utils.run_find_cmd(
+            test_finder_utils.FIND_REFERENCE_TYPE.PACKAGE, search_dir,
+            package.replace('.', '/'))
+        # package path will be the full path to the dir represented by package
+        if not package_path:
+            return None
+        test_filter = frozenset([test_info.TestFilter(package, frozenset())])
+        if not rel_config:
+            rel_module_dir = test_finder_utils.find_parent_module_dir(
+                self.root_dir, package_path)
+            rel_config = os.path.join(rel_module_dir, constants.MODULE_CONFIG)
+        if not module_name:
+            module_name = self.module_info.get_module_name(
+                os.path.dirname(rel_config))
+        return self._process_test_info(test_info.TestInfo(
+            test_name=module_name,
+            test_runner=self._TEST_RUNNER,
+            build_targets=self._get_build_targets(module_name, rel_config),
+            data={constants.TI_FILTER: test_filter,
+                  constants.TI_REL_CONFIG: rel_config}))
+
+    def find_test_by_module_and_package(self, module_package):
+        """Find the test info given a MODULE:PACKAGE string.
+
+        Args:
+            module_package: A string of form MODULE:PACKAGE
+
+        Returns:
+            A populated TestInfo namedtuple if found, else None.
+        """
+        module_name, package = module_package.split(':')
+        module_info = self.find_test_by_module_name(module_name)
+        if not module_info:
+            return None
+        return self.find_test_by_package_name(
+            package, module_info.test_name,
             module_info.data.get(constants.TI_REL_CONFIG))
 
     def find_test_by_path(self, path):

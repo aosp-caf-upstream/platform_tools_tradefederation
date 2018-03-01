@@ -16,8 +16,6 @@
 Test Finder Handler module.
 """
 
-import logging
-
 import atest_enum
 from test_finders import test_finder_base
 from test_finders import tf_integration_finder
@@ -52,6 +50,8 @@ _REF_TYPE_TO_FUNC_MAP = {
     _REFERENCE_TYPE.CLASS: module_finder.ModuleFinder.find_test_by_class_name,
     _REFERENCE_TYPE.MODULE_CLASS: module_finder.ModuleFinder.find_test_by_module_and_class,
     _REFERENCE_TYPE.QUALIFIED_CLASS: module_finder.ModuleFinder.find_test_by_class_name,
+    _REFERENCE_TYPE.PACKAGE: module_finder.ModuleFinder.find_test_by_package_name,
+    _REFERENCE_TYPE.MODULE_PACKAGE: module_finder.ModuleFinder.find_test_by_module_and_package,
     _REFERENCE_TYPE.MODULE_FILE_PATH: module_finder.ModuleFinder.find_test_by_path,
     _REFERENCE_TYPE.INTEGRATION_FILE_PATH:
         tf_integration_finder.TFIntegrationFinder.find_int_test_by_path,
@@ -93,7 +93,7 @@ def _get_test_finders():
         pass
     return test_finders_list
 
-
+# pylint: disable=too-many-return-statements
 def _get_test_reference_types(ref):
     """Determine type of test reference based on the content of string.
 
@@ -120,26 +120,36 @@ def _get_test_reference_types(ref):
         return [_REFERENCE_TYPE.INTEGRATION_FILE_PATH,
                 _REFERENCE_TYPE.MODULE_FILE_PATH,
                 _REFERENCE_TYPE.INTEGRATION,
-                # Comment in SUITE when it's supported
+                # TODO: Comment in SUITE when it's supported
                 # _REFERENCE_TYPE.SUITE
                ]
+    if '.' in ref:
+        ref_end = ref.rsplit('.', 1)[-1]
+        ref_end_is_upper = ref_end[0].isupper()
     if ':' in ref:
         if '.' in ref:
-            return [_REFERENCE_TYPE.MODULE_CLASS,
-                    _REFERENCE_TYPE.INTEGRATION,
-                    _REFERENCE_TYPE.MODULE_PACKAGE]
-        return [_REFERENCE_TYPE.MODULE_CLASS,
-                _REFERENCE_TYPE.INTEGRATION]
+            if ref_end_is_upper:
+                # Module:fully.qualified.Class or Integration:fully.q.Class
+                return [_REFERENCE_TYPE.INTEGRATION,
+                        _REFERENCE_TYPE.MODULE_CLASS]
+            # Module:some.package
+            return [_REFERENCE_TYPE.MODULE_PACKAGE]
+        # Module:Class or IntegrationName:Class
+        return [_REFERENCE_TYPE.INTEGRATION,
+                _REFERENCE_TYPE.MODULE_CLASS]
     if '.' in ref:
-        return [_REFERENCE_TYPE.INTEGRATION_FILE_PATH,
-                _REFERENCE_TYPE.MODULE_FILE_PATH,
-                _REFERENCE_TYPE.QUALIFIED_CLASS,
-                _REFERENCE_TYPE.PACKAGE]
+        if ref_end in ('java', 'bp', 'mk'):
+            return [_REFERENCE_TYPE.MODULE_FILE_PATH]
+        if ref_end == 'xml':
+            return [_REFERENCE_TYPE.INTEGRATION_FILE_PATH]
+        if ref_end_is_upper:
+            return [_REFERENCE_TYPE.QUALIFIED_CLASS]
+        return [_REFERENCE_TYPE.PACKAGE]
     # Note: We assume that if you're referencing a file in your cwd,
     # that file must have a '.' in its name, i.e. foo.java, foo.xml.
     # If this ever becomes not the case, then we need to include path below.
     return [_REFERENCE_TYPE.INTEGRATION,
-            # Comment in SUITE when it's supported
+            # TODO: Comment in SUITE when it's supported
             # REFERENCE_TYPE.SUITE,
             _REFERENCE_TYPE.MODULE,
             _REFERENCE_TYPE.CLASS]
@@ -182,17 +192,10 @@ def _get_default_find_methods(module_info, test):
     find_methods = []
     finder_instance_dict = _get_finder_instance_dict(module_info)
     for test_ref_type in _get_test_reference_types(test):
-        try:
-            find_method = _REF_TYPE_TO_FUNC_MAP[test_ref_type]
-            finder_instance = finder_instance_dict[find_method.im_class.NAME]
-            find_methods.append(test_finder_base.Finder(finder_instance,
-                                                        find_method))
-        except KeyError:
-            supported = ', '.join(_REFERENCE_TYPE[k]
-                                  for k in _REF_TYPE_TO_FUNC_MAP)
-            logging.warn('"%s" as %s reference is unsupported. atest only '
-                         'supports identifying a test by its: %s',
-                         test, _REFERENCE_TYPE[test_ref_type], supported)
+        find_method = _REF_TYPE_TO_FUNC_MAP[test_ref_type]
+        finder_instance = finder_instance_dict[find_method.im_class.NAME]
+        find_methods.append(test_finder_base.Finder(finder_instance,
+                                                    find_method))
     return find_methods
 
 
