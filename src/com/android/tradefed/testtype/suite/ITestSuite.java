@@ -78,6 +78,7 @@ public abstract class ITestSuite
                 IRuntimeHintProvider,
                 IMetricCollectorReceiver {
 
+    public static final String SKIP_SYSTEM_STATUS_CHECKER = "skip-system-status-check";
     public static final String MODULE_CHECKER_PRE = "PreModuleChecker";
     public static final String MODULE_CHECKER_POST = "PostModuleChecker";
     public static final String ABI_OPTION = "abi";
@@ -118,6 +119,17 @@ public abstract class ITestSuite
     @Option(name = "skip-all-system-status-check",
             description = "Whether all system status check between modules should be skipped")
     private boolean mSkipAllSystemStatusCheck = false;
+
+    @Option(
+        name = SKIP_SYSTEM_STATUS_CHECKER,
+        description =
+                "Disable specific system status checkers."
+                        + "Specify zero or more SystemStatusChecker as canonical class names. e.g. "
+                        + "\"com.android.tradefed.suite.checker.KeyguardStatusChecker\" If not "
+                        + "specified, all configured or whitelisted system status checkers will "
+                        + "run."
+    )
+    private Set<String> mSystemStatusCheckBlacklist = new HashSet<>();
 
     @Option(
         name = "report-system-checkers",
@@ -253,13 +265,9 @@ public abstract class ITestSuite
         }
 
         for (Entry<String, IConfiguration> config : runConfig.entrySet()) {
-            if (!ValidateSuiteConfigHelper.validateConfig(config.getValue())) {
-                throw new RuntimeException(
-                        new ConfigurationException(
-                                String.format(
-                                        "Configuration %s cannot be run in a suite.",
-                                        config.getValue().getName())));
-            }
+            // Validate the configuration, it will throw if not valid.
+            ValidateSuiteConfigHelper.validateConfig(config.getValue());
+
             ModuleDefinition module =
                     new ModuleDefinition(
                             config.getKey(),
@@ -277,9 +285,28 @@ public abstract class ITestSuite
         return runModules;
     }
 
+    private void checkSystemStatusBlackList() {
+        for (String checker : mSystemStatusCheckBlacklist) {
+            try {
+                Class.forName(checker);
+            } catch (ClassNotFoundException e) {
+                ConfigurationException ex =
+                        new ConfigurationException(
+                                String.format(
+                                        "--%s must contains valid class, %s was not found",
+                                        SKIP_SYSTEM_STATUS_CHECKER, checker),
+                                e);
+                throw new RuntimeException(ex);
+            }
+        }
+    }
+
     /** Generic run method for all test loaded from {@link #loadTests()}. */
     @Override
     public final void run(ITestInvocationListener listener) throws DeviceNotAvailableException {
+        // Load and check the module checkers
+        checkSystemStatusBlackList();
+
         List<ModuleDefinition> runModules = createExecutionList();
         // Check if we have something to run.
         if (runModules.isEmpty()) {
@@ -408,6 +435,14 @@ public abstract class ITestSuite
         CLog.i("Running system status checker before module execution: %s", moduleName);
         List<String> failures = new ArrayList<>();
         for (ISystemStatusChecker checker : checkers) {
+            // Check if the status checker should be skipped.
+            if (mSystemStatusCheckBlacklist.contains(checker.getClass().getName())) {
+                CLog.d(
+                        "%s was skipped via %s",
+                        checker.getClass().getName(), SKIP_SYSTEM_STATUS_CHECKER);
+                continue;
+            }
+
             boolean result = checker.preExecutionCheck(device);
             if (!result) {
                 failures.add(checker.getClass().getCanonicalName());
@@ -443,6 +478,11 @@ public abstract class ITestSuite
         CLog.i("Running system status checker after module execution: %s", moduleName);
         List<String> failures = new ArrayList<>();
         for (ISystemStatusChecker checker : checkers) {
+            // Check if the status checker should be skipped.
+            if (mSystemStatusCheckBlacklist.contains(checker.getClass().getName())) {
+                continue;
+            }
+
             boolean result = checker.postExecutionCheck(device);
             if (!result) {
                 failures.add(checker.getClass().getCanonicalName());
