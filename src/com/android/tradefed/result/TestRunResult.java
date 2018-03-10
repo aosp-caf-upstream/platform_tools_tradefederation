@@ -15,7 +15,6 @@
  */
 package com.android.tradefed.result;
 
-import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.ddmlib.testrunner.TestResult.TestStatus;
 import com.android.tradefed.log.LogUtil.CLog;
 
@@ -35,11 +34,15 @@ import java.util.Set;
 public class TestRunResult {
     private String mTestRunName;
     // Uses a LinkedHashMap to have predictable iteration order
-    private Map<TestIdentifier, TestResult> mTestResults =
-            new LinkedHashMap<TestIdentifier, TestResult>();
+    private Map<TestDescription, TestResult> mTestResults =
+            new LinkedHashMap<TestDescription, TestResult>();
     private Map<String, String> mRunMetrics = new HashMap<String, String>();
+    // Log files associated with the test run itself (testRunStart / testRunEnd).
+    private Map<String, LogFile> mRunLoggedFiles;
     private boolean mIsRunComplete = false;
     private long mElapsedTime = 0;
+
+    private TestResult mCurrentTestResult;
 
     /** represents sums of tests in each TestStatus state. Indexed by TestStatus.ordinal() */
     private int[] mStatusCounts = new int[TestStatus.values().length];
@@ -53,6 +56,7 @@ public class TestRunResult {
     /** Create an empty{@link TestRunResult}. */
     public TestRunResult() {
         mTestRunName = "not started";
+        mRunLoggedFiles = new LinkedHashMap<String, LogFile>();
     }
 
     public void setAggregateMetrics(boolean metricAggregation) {
@@ -65,7 +69,7 @@ public class TestRunResult {
     }
 
     /** Returns a map of the test results. */
-    public Map<TestIdentifier, TestResult> getTestResults() {
+    public Map<TestDescription, TestResult> getTestResults() {
         return mTestResults;
     }
 
@@ -75,9 +79,9 @@ public class TestRunResult {
     }
 
     /** Gets the set of completed tests. */
-    public Set<TestIdentifier> getCompletedTests() {
-        Set<TestIdentifier> completedTests = new LinkedHashSet<TestIdentifier>();
-        for (Map.Entry<TestIdentifier, TestResult> testEntry : getTestResults().entrySet()) {
+    public Set<TestDescription> getCompletedTests() {
+        Set<TestDescription> completedTests = new LinkedHashSet<>();
+        for (Map.Entry<TestDescription, TestResult> testEntry : getTestResults().entrySet()) {
             if (!testEntry.getValue().getStatus().equals(TestStatus.INCOMPLETE)) {
                 completedTests.add(testEntry.getKey());
             }
@@ -154,25 +158,25 @@ public class TestRunResult {
     public void testRunStarted(String runName, int testCount) {
         mTestRunName = runName;
         mIsRunComplete = false;
-        mRunFailureError = null;
+        // Do not reset mRunFailureError since for re-run we want to preserve previous failures.
     }
 
-    public void testStarted(TestIdentifier test) {
+    public void testStarted(TestDescription test) {
         testStarted(test, System.currentTimeMillis());
     }
 
-    public void testStarted(TestIdentifier test, long startTime) {
-        TestResult res = new TestResult();
-        res.setStartTime(startTime);
-        addTestResult(test, res);
+    public void testStarted(TestDescription test, long startTime) {
+        mCurrentTestResult = new TestResult();
+        mCurrentTestResult.setStartTime(startTime);
+        addTestResult(test, mCurrentTestResult);
     }
 
-    private void addTestResult(TestIdentifier test, TestResult testResult) {
+    private void addTestResult(TestDescription test, TestResult testResult) {
         mIsCountDirty = true;
         mTestResults.put(test, testResult);
     }
 
-    private void updateTestResult(TestIdentifier test, TestStatus status, String trace) {
+    private void updateTestResult(TestDescription test, TestStatus status, String trace) {
         TestResult r = mTestResults.get(test);
         if (r == null) {
             CLog.d("received test event without test start for %s", test);
@@ -183,23 +187,23 @@ public class TestRunResult {
         addTestResult(test, r);
     }
 
-    public void testFailed(TestIdentifier test, String trace) {
+    public void testFailed(TestDescription test, String trace) {
         updateTestResult(test, TestStatus.FAILURE, trace);
     }
 
-    public void testAssumptionFailure(TestIdentifier test, String trace) {
+    public void testAssumptionFailure(TestDescription test, String trace) {
         updateTestResult(test, TestStatus.ASSUMPTION_FAILURE, trace);
     }
 
-    public void testIgnored(TestIdentifier test) {
+    public void testIgnored(TestDescription test) {
         updateTestResult(test, TestStatus.IGNORED, null);
     }
 
-    public void testEnded(TestIdentifier test, Map<String, String> testMetrics) {
+    public void testEnded(TestDescription test, Map<String, String> testMetrics) {
         testEnded(test, System.currentTimeMillis(), testMetrics);
     }
 
-    public void testEnded(TestIdentifier test, long endTime, Map<String, String> testMetrics) {
+    public void testEnded(TestDescription test, long endTime, Map<String, String> testMetrics) {
         TestResult result = mTestResults.get(test);
         if (result == null) {
             result = new TestResult();
@@ -210,6 +214,7 @@ public class TestRunResult {
         result.setEndTime(endTime);
         result.setMetrics(testMetrics);
         addTestResult(test, result);
+        mCurrentTestResult = null;
     }
 
     public void testRunFailed(String errorMessage) {
@@ -276,5 +281,27 @@ public class TestRunResult {
             }
         }
         return builder.toString();
+    }
+
+    /**
+     * Information about a file being logged are stored and associated to the test case or test run
+     * in progress.
+     *
+     * @param dataName the name referencing the data.
+     * @param logFile The {@link LogFile} object representing where the object was saved and and
+     *     information about it.
+     */
+    public void testLogSaved(String dataName, LogFile logFile) {
+        if (mCurrentTestResult != null) {
+            // We have a test case in progress, we can associate the log to it.
+            mCurrentTestResult.addLoggedFile(dataName, logFile);
+        } else {
+            mRunLoggedFiles.put(dataName, logFile);
+        }
+    }
+
+    /** Returns a copy of the map containing all the logged file associated with that test case. */
+    public Map<String, LogFile> getRunLoggedFiles() {
+        return new LinkedHashMap<>(mRunLoggedFiles);
     }
 }

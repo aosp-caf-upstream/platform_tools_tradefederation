@@ -46,6 +46,8 @@ import com.android.tradefed.config.OptionCopierTest;
 import com.android.tradefed.config.OptionSetterTest;
 import com.android.tradefed.config.OptionUpdateRuleTest;
 import com.android.tradefed.config.SandboxConfigurationFactoryTest;
+import com.android.tradefed.config.gcs.GCSConfigurationFactoryTest;
+import com.android.tradefed.config.gcs.GCSConfigurationServerTest;
 import com.android.tradefed.device.AndroidDebugBridgeWrapperTest;
 import com.android.tradefed.device.BackgroundDeviceActionTest;
 import com.android.tradefed.device.CpuStatsCollectorTest;
@@ -67,17 +69,18 @@ import com.android.tradefed.device.WifiHelperTest;
 import com.android.tradefed.device.metric.AtraceCollectorTest;
 import com.android.tradefed.device.metric.AtraceRunMetricCollectorTest;
 import com.android.tradefed.device.metric.BaseDeviceMetricCollectorTest;
-import com.android.tradefed.device.metric.DeviceMetricDataTest;
-import com.android.tradefed.device.metric.MemInfoMetricCollectorTest;
-import com.android.tradefed.device.metric.BugreportzMetricCollectorTest;
-import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.BuddyInfoMetricCollectorTest;
-import com.android.tradefed.device.metric.IonHeapInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.BugreportzMetricCollectorTest;
+import com.android.tradefed.device.metric.DeviceMetricDataTest;
+import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.GfxInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.IonHeapInfoMetricCollectorTest;
+import com.android.tradefed.device.metric.MemInfoMetricCollectorTest;
 import com.android.tradefed.device.metric.PagetypeInfoMetricCollectorTest;
 import com.android.tradefed.device.metric.ProcessMaxMemoryCollectorTest;
 import com.android.tradefed.device.metric.ScheduleMultipleDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.ScheduledDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.TemperatureCollectorTest;
 import com.android.tradefed.device.metric.TraceMetricCollectorTest;
 import com.android.tradefed.invoker.InvocationContextTest;
 import com.android.tradefed.invoker.InvocationExecutionTest;
@@ -191,12 +194,14 @@ import com.android.tradefed.testtype.suite.BaseTestSuiteTest;
 import com.android.tradefed.testtype.suite.ITestSuiteIntegrationTest;
 import com.android.tradefed.testtype.suite.ITestSuiteMultiTest;
 import com.android.tradefed.testtype.suite.ITestSuiteTest;
+import com.android.tradefed.testtype.suite.ModuleDefinitionMultiTest;
 import com.android.tradefed.testtype.suite.ModuleDefinitionTest;
 import com.android.tradefed.testtype.suite.ModuleListenerTest;
 import com.android.tradefed.testtype.suite.ModuleMergerTest;
 import com.android.tradefed.testtype.suite.ModuleSplitterTest;
 import com.android.tradefed.testtype.suite.SuiteModuleLoaderTest;
 import com.android.tradefed.testtype.suite.TestFailureListenerTest;
+import com.android.tradefed.testtype.suite.TestMappingSuiteRunnerTest;
 import com.android.tradefed.testtype.suite.TestSuiteInfoTest;
 import com.android.tradefed.testtype.suite.TfSuiteRunnerTest;
 import com.android.tradefed.testtype.suite.ValidateSuiteConfigHelperTest;
@@ -245,6 +250,7 @@ import com.android.tradefed.util.TableBuilderTest;
 import com.android.tradefed.util.TableFormatterTest;
 import com.android.tradefed.util.TarUtilTest;
 import com.android.tradefed.util.TestLoaderTest;
+import com.android.tradefed.util.TestMappingTest;
 import com.android.tradefed.util.TimeUtilTest;
 import com.android.tradefed.util.TimeValTest;
 import com.android.tradefed.util.ZipUtil2Test;
@@ -259,6 +265,7 @@ import com.android.tradefed.util.net.XmlRpcHelperTest;
 import com.android.tradefed.util.sl4a.Sl4aClientTest;
 import com.android.tradefed.util.sl4a.Sl4aEventDispatcherTest;
 import com.android.tradefed.util.xml.AndroidManifestWriterTest;
+
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -311,6 +318,10 @@ import org.junit.runners.Suite.SuiteClasses;
     OptionUpdateRuleTest.class,
     SandboxConfigurationFactoryTest.class,
 
+    // config.gcs
+    GCSConfigurationServerTest.class,
+    GCSConfigurationFactoryTest.class,
+
     // device
     AndroidDebugBridgeWrapperTest.class,
     BackgroundDeviceActionTest.class,
@@ -347,6 +358,7 @@ import org.junit.runners.Suite.SuiteClasses;
     ProcessMaxMemoryCollectorTest.class,
     ScheduledDeviceMetricCollectorTest.class,
     ScheduleMultipleDeviceMetricCollectorTest.class,
+    TemperatureCollectorTest.class,
     TraceMetricCollectorTest.class,
 
     // invoker
@@ -489,12 +501,14 @@ import org.junit.runners.Suite.SuiteClasses;
     ITestSuiteIntegrationTest.class,
     ITestSuiteMultiTest.class,
     ITestSuiteTest.class,
+    ModuleDefinitionMultiTest.class,
     ModuleDefinitionTest.class,
     ModuleListenerTest.class,
     ModuleMergerTest.class,
     ModuleSplitterTest.class,
     SuiteModuleLoaderTest.class,
     TestFailureListenerTest.class,
+    TestMappingSuiteRunnerTest.class,
     TestSuiteInfoTest.class,
     TfSuiteRunnerTest.class,
     ValidateSuiteConfigHelperTest.class,
@@ -547,6 +561,7 @@ import org.junit.runners.Suite.SuiteClasses;
     TableFormatterTest.class,
     TarUtilTest.class,
     TestLoaderTest.class,
+    TestMappingTest.class,
     TimeUtilTest.class,
     TimeValTest.class,
     XmlRpcHelperTest.class,

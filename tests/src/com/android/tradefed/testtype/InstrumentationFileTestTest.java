@@ -19,12 +19,12 @@ package com.android.tradefed.testtype;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.ITestRunListener;
-import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ITestLifeCycleReceiver;
+import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.ddmlib.TestRunToTestInvocationForwarder;
 
 import junit.framework.TestCase;
@@ -86,22 +86,24 @@ public class InstrumentationFileTestTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void testRun_singleSuccessfulTest() throws DeviceNotAvailableException,
             ConfigurationException {
-        final Collection<TestIdentifier> testsList = new ArrayList<>(1);
-        final TestIdentifier test = new TestIdentifier("ClassFoo", "methodBar");
+        final Collection<TestDescription> testsList = new ArrayList<>(1);
+        final TestDescription test = new TestDescription("ClassFoo", "methodBar");
         testsList.add(test);
 
         // verify the mock listener is passed through to the runner
-        RunTestAnswer runTestResponse = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner,
-                    ITestRunListener listener) {
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
-                listener.testStarted(test);
-                listener.testEnded(test, Collections.EMPTY_MAP);
-                listener.testRunEnded(0, Collections.EMPTY_MAP);
-                return true;
-            }
-        };
+        RunTestAnswer runTestResponse =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
+                        listener.testStarted(TestDescription.convertToIdentifier(test));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test), Collections.EMPTY_MAP);
+                        listener.testRunEnded(0, Collections.EMPTY_MAP);
+                        return true;
+                    }
+                };
         setRunTestExpectations(runTestResponse);
         mInstrumentationFileTest = new InstrumentationFileTest(mMockITest, testsList, true, -1) {
             @Override
@@ -141,46 +143,53 @@ public class InstrumentationFileTestTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void testRun_reRunOneFailedToCompleteTest()
             throws DeviceNotAvailableException, ConfigurationException {
-        final Collection<TestIdentifier> testsList = new ArrayList<>(1);
-        final TestIdentifier test1 = new TestIdentifier("ClassFoo1", "methodBar1");
-        final TestIdentifier test2 = new TestIdentifier("ClassFoo2", "methodBar2");
-        final TestIdentifier test3 = new TestIdentifier("ClassFoo3", "methodBar3");
+        final Collection<TestDescription> testsList = new ArrayList<>(1);
+        final TestDescription test1 = new TestDescription("ClassFoo1", "methodBar1");
+        final TestDescription test2 = new TestDescription("ClassFoo2", "methodBar2");
+        final TestDescription test3 = new TestDescription("ClassFoo3", "methodBar3");
         testsList.add(test1);
         testsList.add(test2);
         testsList.add(test3);
 
         // verify the test1 is completed and test2 was started but never finished
-        RunTestAnswer firstRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // first test started and ended successfully
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
-                listener.testStarted(test1);
-                listener.testEnded(test1, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                // second test started but never finished
-                listener.testStarted(test2);
-                return true;
-            }
-        };
+        RunTestAnswer firstRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // first test started and ended successfully
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
+                        listener.testStarted(TestDescription.convertToIdentifier(test1));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test1), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        // second test started but never finished
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        return true;
+                    }
+                };
         setRunTestExpectations(firstRunAnswer);
 
         // now expect second run to rerun remaining test3 and test2
-        RunTestAnswer secondRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // third test started and ended successfully
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
-                listener.testStarted(test3);
-                listener.testEnded(test3, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                // second test is rerun but completed successfully this time
-                listener.testStarted(test2);
-                listener.testEnded(test2, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                return true;
-            }
-        };
+        RunTestAnswer secondRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // third test started and ended successfully
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
+                        listener.testStarted(TestDescription.convertToIdentifier(test3));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test3), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        // second test is rerun but completed successfully this time
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test2), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        return true;
+                    }
+                };
         setRunTestExpectations(secondRunAnswer);
         mInstrumentationFileTest = new InstrumentationFileTest(mMockITest, testsList, true, -1) {
             @Override
@@ -235,53 +244,61 @@ public class InstrumentationFileTestTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void testRun_serialReRunOfTwoFailedToCompleteTests()
             throws DeviceNotAvailableException, ConfigurationException {
-        final Collection<TestIdentifier> testsList = new ArrayList<>(1);
-        final TestIdentifier test1 = new TestIdentifier("ClassFoo1", "methodBar1");
-        final TestIdentifier test2 = new TestIdentifier("ClassFoo2", "methodBar2");
+        final Collection<TestDescription> testsList = new ArrayList<>(1);
+        final TestDescription test1 = new TestDescription("ClassFoo1", "methodBar1");
+        final TestDescription test2 = new TestDescription("ClassFoo2", "methodBar2");
         testsList.add(test1);
         testsList.add(test2);
 
         // verify the test1 and test2 started but never completed
-        RunTestAnswer firstRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // first and second tests started but never completed
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
-                listener.testStarted(test1);
-                listener.testStarted(test2);
-                // verify that the content of the testFile contains all expected tests
-                verifyTestFile(testsList);
-                return true;
-            }
-        };
+        RunTestAnswer firstRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // first and second tests started but never completed
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
+                        listener.testStarted(TestDescription.convertToIdentifier(test1));
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        // verify that the content of the testFile contains all expected tests
+                        verifyTestFile(testsList);
+                        return true;
+                    }
+                };
         setRunTestExpectations(firstRunAnswer);
 
         // verify successful serial execution of test1
-        RunTestAnswer firstSerialRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // first test started and ended successfully in serial mode
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
-                listener.testStarted(test1);
-                listener.testEnded(test1, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                return true;
-            }
-        };
+        RunTestAnswer firstSerialRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // first test started and ended successfully in serial mode
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
+                        listener.testStarted(TestDescription.convertToIdentifier(test1));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test1), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        return true;
+                    }
+                };
         setRunTestExpectations(firstSerialRunAnswer);
 
         // verify successful serial execution of test2
-        RunTestAnswer secdondSerialRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // Second test started and ended successfully in serial mode
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
-                listener.testStarted(test2);
-                listener.testEnded(test2, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                return true;
-            }
-        };
+        RunTestAnswer secdondSerialRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // Second test started and ended successfully in serial mode
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 1);
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test2), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        return true;
+                    }
+                };
         setRunTestExpectations(secdondSerialRunAnswer);
 
         mInstrumentationFileTest = new InstrumentationFileTest(mMockITest, testsList, true, -1) {
@@ -337,25 +354,27 @@ public class InstrumentationFileTestTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void testRun_noSerialReRun()
             throws DeviceNotAvailableException, ConfigurationException {
-        final Collection<TestIdentifier> testsList = new ArrayList<>(1);
-        final TestIdentifier test1 = new TestIdentifier("ClassFoo1", "methodBar1");
-        final TestIdentifier test2 = new TestIdentifier("ClassFoo2", "methodBar2");
+        final Collection<TestDescription> testsList = new ArrayList<>(1);
+        final TestDescription test1 = new TestDescription("ClassFoo1", "methodBar1");
+        final TestDescription test2 = new TestDescription("ClassFoo2", "methodBar2");
         testsList.add(test1);
         testsList.add(test2);
 
         // verify the test1 and test2 started but never completed
-        RunTestAnswer firstRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // first and second tests started but never completed
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
-                listener.testStarted(test1);
-                listener.testStarted(test2);
-                // verify that the content of the testFile contains all expected tests
-                verifyTestFile(testsList);
-                return true;
-            }
-        };
+        RunTestAnswer firstRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // first and second tests started but never completed
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 2);
+                        listener.testStarted(TestDescription.convertToIdentifier(test1));
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        // verify that the content of the testFile contains all expected tests
+                        verifyTestFile(testsList);
+                        return true;
+                    }
+                };
         setRunTestExpectations(firstRunAnswer);
 
         mInstrumentationFileTest = new InstrumentationFileTest(mMockITest, testsList, false, -1) {
@@ -393,13 +412,13 @@ public class InstrumentationFileTestTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void testRun_exceedMaxAttempts()
             throws DeviceNotAvailableException, ConfigurationException {
-        final ArrayList<TestIdentifier> testsList = new ArrayList<>(1);
-        final TestIdentifier test1 = new TestIdentifier("ClassFoo1", "methodBar1");
-        final TestIdentifier test2 = new TestIdentifier("ClassFoo2", "methodBar2");
-        final TestIdentifier test3 = new TestIdentifier("ClassFoo3", "methodBar3");
-        final TestIdentifier test4 = new TestIdentifier("ClassFoo4", "methodBar4");
-        final TestIdentifier test5 = new TestIdentifier("ClassFoo5", "methodBar5");
-        final TestIdentifier test6 = new TestIdentifier("ClassFoo6", "methodBar6");
+        final ArrayList<TestDescription> testsList = new ArrayList<>(1);
+        final TestDescription test1 = new TestDescription("ClassFoo1", "methodBar1");
+        final TestDescription test2 = new TestDescription("ClassFoo2", "methodBar2");
+        final TestDescription test3 = new TestDescription("ClassFoo3", "methodBar3");
+        final TestDescription test4 = new TestDescription("ClassFoo4", "methodBar4");
+        final TestDescription test5 = new TestDescription("ClassFoo5", "methodBar5");
+        final TestDescription test6 = new TestDescription("ClassFoo6", "methodBar6");
 
         testsList.add(test1);
         testsList.add(test2);
@@ -408,60 +427,69 @@ public class InstrumentationFileTestTest extends TestCase {
         testsList.add(test5);
         testsList.add(test6);
 
-        final ArrayList<TestIdentifier> expectedTestsList = new ArrayList<>(testsList);
+        final ArrayList<TestDescription> expectedTestsList = new ArrayList<>(testsList);
 
         // test1 fininshed, test2 started but not finished.
-        RunTestAnswer firstRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 6);
-                // first test started and ended successfully
-                listener.testStarted(test1);
-                listener.testEnded(test1, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                // second test started but never finished
-                listener.testStarted(test2);
-                // verify that the content of the testFile contains all expected tests
-                verifyTestFile(expectedTestsList);
-                return true;
-            }
-        };
+        RunTestAnswer firstRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 6);
+                        // first test started and ended successfully
+                        listener.testStarted(TestDescription.convertToIdentifier(test1));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test1), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        // second test started but never finished
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        // verify that the content of the testFile contains all expected tests
+                        verifyTestFile(expectedTestsList);
+                        return true;
+                    }
+                };
         setRunTestExpectations(firstRunAnswer);
 
         // test2 finished, test3 started but not finished.
-        RunTestAnswer secondRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // test2 started and ended successfully
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 5);
-                listener.testStarted(test2);
-                listener.testEnded(test2, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                // test3 started but never finished
-                listener.testStarted(test3);
-                // verify that the content of the testFile contains all expected tests
-                verifyTestFile(expectedTestsList.subList(1, expectedTestsList.size()));
-                return true;
-            }
-        };
+        RunTestAnswer secondRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // test2 started and ended successfully
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 5);
+                        listener.testStarted(TestDescription.convertToIdentifier(test2));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test2), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        // test3 started but never finished
+                        listener.testStarted(TestDescription.convertToIdentifier(test3));
+                        // verify that the content of the testFile contains all expected tests
+                        verifyTestFile(expectedTestsList.subList(1, expectedTestsList.size()));
+                        return true;
+                    }
+                };
         setRunTestExpectations(secondRunAnswer);
 
         // test3 finished, test4 started but not finished.
-        RunTestAnswer thirdRunAnswer = new RunTestAnswer() {
-            @Override
-            public Boolean answer(IRemoteAndroidTestRunner runner, ITestRunListener listener) {
-                // test3 started and ended successfully
-                listener.testRunStarted(TEST_PACKAGE_VALUE, 4);
-                listener.testStarted(test3);
-                listener.testEnded(test3, Collections.EMPTY_MAP);
-                listener.testRunEnded(1, Collections.EMPTY_MAP);
-                // test4 started but never finished
-                listener.testStarted(test4);
-                // verify that the content of the testFile contains all expected tests
-                verifyTestFile(expectedTestsList.subList(2, expectedTestsList.size()));
-                return true;
-            }
-        };
+        RunTestAnswer thirdRunAnswer =
+                new RunTestAnswer() {
+                    @Override
+                    public Boolean answer(
+                            IRemoteAndroidTestRunner runner, ITestRunListener listener) {
+                        // test3 started and ended successfully
+                        listener.testRunStarted(TEST_PACKAGE_VALUE, 4);
+                        listener.testStarted(TestDescription.convertToIdentifier(test3));
+                        listener.testEnded(
+                                TestDescription.convertToIdentifier(test3), Collections.EMPTY_MAP);
+                        listener.testRunEnded(1, Collections.EMPTY_MAP);
+                        // test4 started but never finished
+                        listener.testStarted(TestDescription.convertToIdentifier(test4));
+                        // verify that the content of the testFile contains all expected tests
+                        verifyTestFile(expectedTestsList.subList(2, expectedTestsList.size()));
+                        return true;
+                    }
+                };
         setRunTestExpectations(thirdRunAnswer);
 
         mInstrumentationFileTest = new InstrumentationFileTest(mMockITest, testsList, false, 3) {
@@ -515,9 +543,10 @@ public class InstrumentationFileTestTest extends TestCase {
 
     /**
      * Helper class that verifies tetFile's content match the expected list of test to be run
-     * @param testsList  list of test to be executed
+     *
+     * @param testsList list of test to be executed
      */
-    private void verifyTestFile(Collection<TestIdentifier> testsList) {
+    private void verifyTestFile(Collection<TestDescription> testsList) {
         // fail if the file was never created
         assertNotNull(mTestFile);
 
@@ -525,7 +554,7 @@ public class InstrumentationFileTestTest extends TestCase {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] str = line.split("#");
-                TestIdentifier test = new TestIdentifier(str[0], str[1]);
+                TestDescription test = new TestDescription(str[0], str[1]);
                 assertTrue(String.format(
                         "Test with class name: %s and method name: %s does not exists",
                         test.getClassName(), test.getTestName()), testsList.contains(test));

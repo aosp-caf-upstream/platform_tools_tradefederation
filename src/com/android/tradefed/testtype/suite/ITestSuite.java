@@ -20,6 +20,8 @@ import com.android.ddmlib.Log.LogLevel;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.config.IConfiguration;
+import com.android.tradefed.config.IConfigurationReceiver;
+import com.android.tradefed.config.IDeviceConfiguration;
 import com.android.tradefed.config.Option;
 import com.android.tradefed.config.Option.Importance;
 import com.android.tradefed.config.OptionCopier;
@@ -35,6 +37,7 @@ import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.suite.checker.ISystemStatusChecker;
 import com.android.tradefed.suite.checker.ISystemStatusCheckerReceiver;
+import com.android.tradefed.targetprep.ITargetPreparer;
 import com.android.tradefed.testtype.Abi;
 import com.android.tradefed.testtype.IAbi;
 import com.android.tradefed.testtype.IBuildReceiver;
@@ -76,9 +79,11 @@ public abstract class ITestSuite
                 ITestCollector,
                 IInvocationContextReceiver,
                 IRuntimeHintProvider,
-                IMetricCollectorReceiver {
+                IMetricCollectorReceiver,
+                IConfigurationReceiver {
 
     public static final String SKIP_SYSTEM_STATUS_CHECKER = "skip-system-status-check";
+    public static final String WHITE_LIST_RUNNER = "whitelist-runner";
     public static final String MODULE_CHECKER_PRE = "PreModuleChecker";
     public static final String MODULE_CHECKER_POST = "PostModuleChecker";
     public static final String ABI_OPTION = "abi";
@@ -192,12 +197,16 @@ public abstract class ITestSuite
     )
     private MultiMap<String, String> mModuleMetadataExcludeFilter = new MultiMap<>();
 
+    @Option(name = WHITE_LIST_RUNNER, description = "Runner class that are allowed to run.")
+    private Set<String> mAllowedRunners = new HashSet<>();
+
     private ITestDevice mDevice;
     private IBuildInfo mBuildInfo;
     private Map<ITestDevice, IBuildInfo> mDeviceInfos;
     private List<ISystemStatusChecker> mSystemStatusCheckers;
     private IInvocationContext mContext;
     private List<IMetricCollector> mMetricCollectors;
+    private IConfiguration mMainConfiguration;
 
     // Sharding attributes
     private boolean mIsSharded = false;
@@ -267,12 +276,13 @@ public abstract class ITestSuite
         for (Entry<String, IConfiguration> config : runConfig.entrySet()) {
             // Validate the configuration, it will throw if not valid.
             ValidateSuiteConfigHelper.validateConfig(config.getValue());
-
+            Map<String, List<ITargetPreparer>> preparersPerDevice =
+                    getPreparerPerDevice(config.getValue());
             ModuleDefinition module =
                     new ModuleDefinition(
                             config.getKey(),
                             config.getValue().getTests(),
-                            config.getValue().getTargetPreparers(),
+                            preparersPerDevice,
                             config.getValue().getMultiTargetPreparers(),
                             config.getValue());
             module.setDevice(mDevice);
@@ -301,11 +311,39 @@ public abstract class ITestSuite
         }
     }
 
+    private void checkRunnerWhiteList() {
+        for (String runner : mAllowedRunners) {
+            try {
+                Class.forName(runner);
+            } catch (ClassNotFoundException e) {
+                ConfigurationException ex =
+                        new ConfigurationException(
+                                String.format(
+                                        "--%s must contains valid class, %s was not found",
+                                        WHITE_LIST_RUNNER, runner),
+                                e);
+                throw new RuntimeException(ex);
+            }
+        }
+    }
+
+    /** Create the mapping of device to its target_preparer. */
+    private Map<String, List<ITargetPreparer>> getPreparerPerDevice(IConfiguration config) {
+        Map<String, List<ITargetPreparer>> res = new LinkedHashMap<>();
+        for (IDeviceConfiguration holder : config.getDeviceConfig()) {
+            List<ITargetPreparer> preparers = new ArrayList<>();
+            res.put(holder.getDeviceName(), preparers);
+            preparers.addAll(holder.getTargetPreparers());
+        }
+        return res;
+    }
+
     /** Generic run method for all test loaded from {@link #loadTests()}. */
     @Override
     public final void run(ITestInvocationListener listener) throws DeviceNotAvailableException {
         // Load and check the module checkers
         checkSystemStatusBlackList();
+        checkRunnerWhiteList();
 
         List<ModuleDefinition> runModules = createExecutionList();
         // Check if we have something to run.
@@ -353,7 +391,6 @@ public abstract class ITestSuite
                 }
 
                 try {
-                    listener.testModuleStarted(module.getModuleInvocationContext());
                     // Populate the module context with devices and builds
                     for (String deviceName : mContext.getDeviceConfigNames()) {
                         module.getModuleInvocationContext()
@@ -361,6 +398,7 @@ public abstract class ITestSuite
                         module.getModuleInvocationContext()
                                 .addDeviceBuildInfo(deviceName, mContext.getBuildInfo(deviceName));
                     }
+                    listener.testModuleStarted(module.getModuleInvocationContext());
                     runSingleModule(module, listener, failureListener);
                 } finally {
                     // clear out module invocation context since we are now done with module
@@ -413,6 +451,11 @@ public abstract class ITestSuite
         }
         // Pass the run defined collectors to be used.
         module.setMetricCollectors(mMetricCollectors);
+        // Pass the main invocation logSaver
+        module.setLogSaver(mMainConfiguration.getLogSaver());
+
+        // Sets the runners that are allowed to run.
+        module.setRunnerWhiteList(mAllowedRunners);
         // Actually run the module
         module.run(listener, failureListener);
 
@@ -665,6 +708,12 @@ public abstract class ITestSuite
             return mDirectModule.getRuntimeHint();
         }
         return 0l;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void setConfiguration(IConfiguration configuration) {
+        mMainConfiguration = configuration;
     }
 
     /**
