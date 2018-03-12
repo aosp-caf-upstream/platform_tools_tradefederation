@@ -18,6 +18,7 @@ package com.android.tradefed.invoker;
 import com.android.ddmlib.Log.LogLevel;
 import com.android.tradefed.build.BuildRetrievalError;
 import com.android.tradefed.build.IBuildInfo;
+import com.android.tradefed.build.IBuildInfo.BuildInfoProperties;
 import com.android.tradefed.build.IBuildProvider;
 import com.android.tradefed.build.IDeviceBuildInfo;
 import com.android.tradefed.build.IDeviceBuildProvider;
@@ -232,6 +233,10 @@ public class InvocationExecution implements IInvocationExecution {
                 multiPreparers.listIterator(multiPreparers.size());
         while (iterator.hasPrevious()) {
             IMultiTargetPreparer multipreparer = iterator.previous();
+            if (multipreparer.isDisabled() || multipreparer.isTearDownDisabled()) {
+                CLog.d("%s has been disabled. skipping.", multipreparer);
+                continue;
+            }
             CLog.d("Starting multi target tearDown '%s'", multipreparer);
             multipreparer.tearDown(context, throwable);
             CLog.d("Done with multi target tearDown '%s'", multipreparer);
@@ -249,7 +254,7 @@ public class InvocationExecution implements IInvocationExecution {
                 if (preparer instanceof ITargetCleaner) {
                     ITargetCleaner cleaner = (ITargetCleaner) preparer;
                     // do not call the cleaner if it was disabled
-                    if (cleaner.isDisabled()) {
+                    if (cleaner.isDisabled() || cleaner.isTearDownDisabled()) {
                         CLog.d("%s has been disabled. skipping.", cleaner);
                         continue;
                     }
@@ -293,7 +298,7 @@ public class InvocationExecution implements IInvocationExecution {
                 ITargetPreparer preparer = itr.previous();
                 if (preparer instanceof IHostCleaner) {
                     IHostCleaner cleaner = (IHostCleaner) preparer;
-                    if (preparer.isDisabled()) {
+                    if (preparer.isDisabled() || preparer.isTearDownDisabled()) {
                         CLog.d("%s has been disabled. skipping.", cleaner);
                         continue;
                     }
@@ -454,6 +459,10 @@ public class InvocationExecution implements IInvocationExecution {
                             + " have no alias/namespace in front of test-tag.");
         }
 
+        if (info.getProperties().contains(BuildInfoProperties.DO_NOT_LINK_TESTS_DIR)) {
+            CLog.d("Skip linking external directory as FileProperty was set.");
+            return;
+        }
         // Load environment tests dir.
         if (info instanceof IDeviceBuildInfo) {
             File testsDir = ((IDeviceBuildInfo) info).getTestsDir();
@@ -471,6 +480,8 @@ public class InvocationExecution implements IInvocationExecution {
                                 subDir,
                                 /** version */
                                 "v1");
+                        // Ensure we always delete the linking, no matter how the JVM exits.
+                        subDir.deleteOnExit();
                     } catch (IOException e) {
                         CLog.e(
                                 "Failed to load external test dir %s. Ignoring it.",
