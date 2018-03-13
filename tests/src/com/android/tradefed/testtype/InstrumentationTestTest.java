@@ -32,12 +32,12 @@ import com.android.ddmlib.IDevice;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.InstrumentationResultParser;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
-import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ITestLifeCycleReceiver;
+import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.util.ListInstrumentationParser;
 import com.android.tradefed.util.ListInstrumentationParser.InstrumentationTarget;
 
@@ -69,8 +69,8 @@ public class InstrumentationTestTest {
 
     private static final String TEST_PACKAGE_VALUE = "com.foo";
     private static final String TEST_RUNNER_VALUE = ".FooRunner";
-    private static final TestIdentifier TEST1 = new TestIdentifier("Test", "test1");
-    private static final TestIdentifier TEST2 = new TestIdentifier("Test", "test2");
+    private static final TestDescription TEST1 = new TestDescription("Test", "test1");
+    private static final TestDescription TEST2 = new TestDescription("Test", "test2");
     private static final String RUN_ERROR_MSG = "error";
     private static final Map<String, String> EMPTY_STRING_MAP = Collections.emptyMap();
 
@@ -83,7 +83,7 @@ public class InstrumentationTestTest {
     @Mock ITestInvocationListener mMockListener;
     @Mock ListInstrumentationParser mMockListInstrumentationParser;
 
-    @Captor private ArgumentCaptor<Collection<TestIdentifier>> testCaptor;
+    @Captor private ArgumentCaptor<Collection<TestDescription>> testCaptor;
 
     /**
      * Helper class for providing an {@link IAnswer} to a {@link
@@ -181,7 +181,7 @@ public class InstrumentationTestTest {
         mInstrumentationTest.setClassName(className);
         mInstrumentationTest.setRunnerArgs(runner);
 
-        assertThat(runner.getArgs()).containsEntry("class", className);
+        assertThat(runner.getArgs()).containsEntry("class", "'" + className + "'");
     }
 
     /** Test normal run scenario with a test class and method specified. */
@@ -195,7 +195,7 @@ public class InstrumentationTestTest {
         mInstrumentationTest.setMethodName(methodName);
         mInstrumentationTest.setRunnerArgs(runner);
 
-        assertThat(runner.getArgs()).containsEntry("class", "FooTest#testFoo");
+        assertThat(runner.getArgs()).containsEntry("class", "'FooTest#testFoo'");
     }
 
     /** Test normal run scenario with a test package specified. */
@@ -219,8 +219,7 @@ public class InstrumentationTestTest {
         mInstrumentationTest.setTestPackageName("com.foo");
         mInstrumentationTest.setClassName(testClassName);
         mInstrumentationTest.setRunnerArgs(runner);
-
-        assertThat(runner.getArgs()).containsEntry("class", testClassName);
+        assertThat(runner.getArgs()).containsEntry("class", "'" + testClassName + "'");
         assertThat(runner.getArgs()).doesNotContainKey("package");
     }
 
@@ -325,7 +324,7 @@ public class InstrumentationTestTest {
         mInstrumentationTest.setRerunMode(true);
         mInstrumentationTest.setCoverage(true);
 
-        Collection<TestIdentifier> expectedTests = ImmutableList.of(TEST1, TEST2);
+        Collection<TestDescription> expectedTests = ImmutableList.of(TEST1, TEST2);
 
         // Mock collected tests
         RunInstrumentationTestsAnswer collected =
@@ -624,7 +623,7 @@ public class InstrumentationTestTest {
 
         mInstrumentationTest.setEnforceFormat(false);
 
-        Collection<TestIdentifier> result =
+        Collection<TestDescription> result =
                 mInstrumentationTest.collectTestsAndRetry(
                         mock(IRemoteAndroidTestRunner.class), null);
         assertThat(result).isNull();
@@ -638,14 +637,14 @@ public class InstrumentationTestTest {
     public void testCollectWorks_RunCrash() throws Exception {
         doReturn(mock(IRemoteTest.class))
                 .when(mInstrumentationTest)
-                .getTestReRunner(anyCollectionOf(TestIdentifier.class));
+                .getTestReRunner(anyCollectionOf(TestDescription.class));
 
         // We collect successfully 5 tests
         RunInstrumentationTestsAnswer collected =
                 (runner, listener) -> {
                     listener.testRunStarted("fakeName", 5);
                     for (int i = 0; i < 5; i++) {
-                        TestIdentifier tid = new TestIdentifier("fakeclass", "fakemethod" + i);
+                        TestDescription tid = new TestDescription("fakeclass", "fakemethod" + i);
                         listener.testStarted(tid, 5);
                         listener.testEnded(tid, 15, Collections.emptyMap());
                     }

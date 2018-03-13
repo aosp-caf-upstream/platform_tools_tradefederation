@@ -30,17 +30,19 @@ import sys
 import tempfile
 import time
 
+import atest_error
 import atest_utils
 import cli_translator
 # pylint: disable=import-error
 import constants
+import module_info
 import test_runner_handler
 from test_runners import regression_test_runner
 
 EXPECTED_VARS = frozenset([
-    atest_utils.ANDROID_BUILD_TOP,
+    constants.ANDROID_BUILD_TOP,
     'ANDROID_TARGET_OUT_TESTCASES',
-    'OUT'])
+    constants.ANDROID_OUT])
 BUILD_STEP = 'build'
 INSTALL_STEP = 'install'
 TEST_STEP = 'test'
@@ -48,6 +50,7 @@ ALL_STEPS = [BUILD_STEP, INSTALL_STEP, TEST_STEP]
 TEST_RUN_DIR_PREFIX = 'atest_run_%s_'
 HELP_DESC = '''Build, install and run Android tests locally.'''
 REBUILD_MODULE_INFO_FLAG = '--rebuild-module-info'
+CUSTOM_ARG_FLAG = '--'
 
 EPILOG_TEXT = '''
 
@@ -265,7 +268,23 @@ def _parse_args(argv):
     parser.add_argument('--detect-regression', nargs='*',
                         help='Run regression detection algorithm. Supply '
                              'path to baseline and/or new metrics folders.')
-    return parser.parse_args(argv)
+    # This arg actually doesn't consume anything, it's primarily used for the
+    # help description and creating custom_args in the NameSpace object.
+    parser.add_argument('--', dest='custom_args', nargs='*',
+                        help='Specify custom args for the test runners. '
+                             'Everything after -- will be consumed as custom '
+                             'args.')
+    # Store everything after '--' in custom_args.
+    pruned_argv = argv
+    custom_args_index = None
+    if CUSTOM_ARG_FLAG in argv:
+        custom_args_index = argv.index(CUSTOM_ARG_FLAG)
+        pruned_argv = argv[:custom_args_index]
+    args = parser.parse_args(pruned_argv)
+    args.custom_args = []
+    if custom_args_index is not None:
+        args.custom_args = argv[custom_args_index+1:]
+    return args
 
 
 def _configure_logging(verbose):
@@ -337,6 +356,8 @@ def get_extra_args(args):
         extra_args[constants.PRE_PATCH_ITERATIONS] = args.generate_baseline
     if args.generate_new_metrics:
         extra_args[constants.POST_PATCH_ITERATIONS] = args.generate_new_metrics
+    if args.custom_args:
+        extra_args[constants.CUSTOM_ARGS] = args.custom_args
     return extra_args
 
 
@@ -429,23 +450,26 @@ def main(argv):
         return constants.EXIT_CODE_ERROR
     if not _has_valid_regression_detection_args(args):
         return constants.EXIT_CODE_ERROR
-    repo_root = os.environ.get(atest_utils.ANDROID_BUILD_TOP)
     results_dir = make_test_run_dir()
-    translator = cli_translator.CLITranslator(
-        results_dir=results_dir, root_dir=repo_root,
-        force_init=args.rebuild_module_info)
+    mod_info = module_info.ModuleInfo(force_build=args.rebuild_module_info)
+    translator = cli_translator.CLITranslator(module_info=mod_info)
     build_targets = set()
     test_infos = set()
     if _will_run_tests(args):
         try:
             build_targets, test_infos = translator.translate(args.tests)
-        except cli_translator.TestDiscoveryException:
+        except atest_error.TestDiscoveryException:
             logging.exception('Error occured in test discovery:')
             logging.info('This can happen after a repo sync or if the test is '
                          'new. Running: with "%s"  may resolve the issue.',
                          REBUILD_MODULE_INFO_FLAG)
             return constants.EXIT_CODE_TEST_NOT_FOUND
-    build_targets |= test_runner_handler.get_test_runner_reqs(test_infos)
+    build_targets |= test_runner_handler.get_test_runner_reqs(mod_info,
+                                                              test_infos)
+    # We don't initialize module-info if it already exists or
+    # --rebuild-module-info is passed in. Add it to the list of build targets to
+    # keep the file up to date.
+    build_targets.add(mod_info.module_info_target)
     extra_args = get_extra_args(args)
     if args.detect_regression:
         build_targets |= (regression_test_runner.RegressionTestRunner('')

@@ -15,10 +15,10 @@
  */
 package com.android.tradefed.result;
 
-import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.ddmlib.testrunner.TestResult.TestStatus;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Container for a result of a single test. */
@@ -27,6 +27,7 @@ public class TestResult {
     private TestStatus mStatus;
     private String mStackTrace;
     private Map<String, String> mMetrics;
+    private Map<String, LogFile> mLoggedFiles;
     // the start and end time of the test, measured via {@link System#currentTimeMillis()}
     private long mStartTime = 0;
     private long mEndTime = 0;
@@ -34,6 +35,7 @@ public class TestResult {
     public TestResult() {
         mStatus = TestStatus.INCOMPLETE;
         mStartTime = System.currentTimeMillis();
+        mLoggedFiles = new LinkedHashMap<String, LogFile>();
     }
 
     /** Get the {@link TestStatus} result of the test. */
@@ -59,9 +61,19 @@ public class TestResult {
         mMetrics = metrics;
     }
 
+    /** Add a logged file tracking associated with that test case */
+    public void addLoggedFile(String dataName, LogFile loggedFile) {
+        mLoggedFiles.put(dataName, loggedFile);
+    }
+
+    /** Returns a copy of the map containing all the logged file associated with that test case. */
+    public Map<String, LogFile> getLoggedFiles() {
+        return new LinkedHashMap<>(mLoggedFiles);
+    }
+
     /**
      * Return the {@link System#currentTimeMillis()} time that the {@link
-     * ITestInvocationListener#testStarted(TestIdentifier)} event was received.
+     * ITestInvocationListener#testStarted(TestDescription)} event was received.
      */
     public long getStartTime() {
         return mStartTime;
@@ -69,7 +81,7 @@ public class TestResult {
 
     /**
      * Allows to set the time when the test was started, to be used with {@link
-     * ITestInvocationListener#testStarted(TestIdentifier, long)}.
+     * ITestInvocationListener#testStarted(TestDescription, long)}.
      */
     public void setStartTime(long startTime) {
         mStartTime = startTime;
@@ -77,7 +89,7 @@ public class TestResult {
 
     /**
      * Return the {@link System#currentTimeMillis()} time that the {@link
-     * ITestInvocationListener#testEnded(TestIdentifier, Map)} event was received.
+     * ITestInvocationListener#testEnded(TestDescription, Map)} event was received.
      */
     public long getEndTime() {
         return mEndTime;

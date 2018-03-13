@@ -60,6 +60,8 @@ import com.android.tradefed.util.SizeLimitedOutputStream;
 import com.android.tradefed.util.StreamUtil;
 import com.android.tradefed.util.ZipUtil2;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.compress.archivers.zip.ZipFile;
 
 import java.io.File;
@@ -67,6 +69,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -185,6 +188,7 @@ public class NativeDevice implements IManagedTestDevice {
     protected TestDeviceOptions mOptions = new TestDeviceOptions();
     private Process mEmulatorProcess;
     private SizeLimitedOutputStream mEmulatorOutput;
+    private Clock mClock = Clock.systemUTC();
 
     private RecoveryMode mRecoveryMode = RecoveryMode.AVAILABLE;
 
@@ -262,13 +266,16 @@ public class NativeDevice implements IManagedTestDevice {
         mAllocationMonitor = allocationMonitor;
     }
 
-    /**
-     * Get the {@link RunUtil} instance to use.
-     * <p/>
-     * Exposed for unit testing.
-     */
+    /** Get the {@link RunUtil} instance to use. */
+    @VisibleForTesting
     protected IRunUtil getRunUtil() {
         return RunUtil.getDefault();
+    }
+
+    /** Set the Clock instance to use. */
+    @VisibleForTesting
+    protected void setClock(Clock clock) {
+        mClock = clock;
     }
 
     /**
@@ -1181,6 +1188,19 @@ public class NativeDevice implements IManagedTestDevice {
     }
 
     /**
+     * Unofficial helper to get a {@link FileEntry} from a non-root path. FIXME: Refactor the
+     * FileEntry system to have it available from any path. (even non root).
+     *
+     * @param entry a {@link FileEntry} not necessarily root as Ddmlib requires.
+     * @return a {@link FileEntryWrapper} representing the FileEntry.
+     * @throws DeviceNotAvailableException
+     */
+    public IFileEntry getFileEntry(FileEntry entry) throws DeviceNotAvailableException {
+        // FileEntryWrapper is going to construct the list of child fild internally.
+        return new FileEntryWrapper(this, entry);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -1274,38 +1294,34 @@ public class NativeDevice implements IManagedTestDevice {
             CLog.e("Device path %s is not a directory", deviceFilePath);
             return false;
         }
-        String lsOutput = executeShellCommand(String.format("ls -Ap1 %s", deviceFilePath));
-        if (lsOutput.trim().isEmpty()) {
+        FileEntry entryRoot =
+                new FileEntry(null, deviceFilePath, FileListingService.TYPE_DIRECTORY, false);
+        IFileEntry entry = getFileEntry(entryRoot);
+        Collection<IFileEntry> children = entry.getChildren(false);
+        if (children.isEmpty()) {
             CLog.i("Device path is empty, nothing to do.");
             return true;
         }
-        String[] items = lsOutput.split("\r?\n");
-        for (String item : items) {
-            if (item.isEmpty()) {
-                // skip empty entries
-                continue;
-            }
-            if (item.endsWith("/")) {
+        for (IFileEntry item : children) {
+            if (item.isDirectory()) {
                 // handle sub dir
-                // prepare local path first
-                item = item.substring(0, item.length() - 1);
-                File subDir = new File(localDir, item);
+                File subDir = new File(localDir, item.getName());
                 if (!subDir.mkdir()) {
                     CLog.w("Failed to create sub directory %s, aborting.",
                             subDir.getAbsolutePath());
                     return false;
                 }
-                String deviceSubDir = String.format("%s/%s", deviceFilePath, item);
+                String deviceSubDir = item.getFullPath();
                 if (!pullDir(deviceSubDir, subDir)) {
                     CLog.w("Failed to pull sub directory %s from device, aborting", deviceSubDir);
                     return false;
                 }
             } else {
                 // handle regular file
-                String deviceFile = String.format("%s/%s", deviceFilePath, item);
-                File localFile = new File(localDir, item);
-                if (!pullFile(deviceFile, localFile)) {
-                    CLog.w("Failed to pull file %s from device, aborting", deviceFile);
+                File localFile = new File(localDir, item.getName());
+                String fullPath = item.getFullPath();
+                if (!pullFile(fullPath, localFile)) {
+                    CLog.w("Failed to pull file %s from device, aborting", fullPath);
                     return false;
                 }
             }
@@ -1476,8 +1492,8 @@ public class NativeDevice implements IManagedTestDevice {
     /**
      * Return <code>true</code> if local file is newer than remote file. {@link IFileEntry} being
      * accurate to the minute, in case of equal times, the file will be considered newer.
-     * Exposed for testing.
      */
+    @VisibleForTesting
     protected boolean isNewer(File localFile, IFileEntry entry) {
         final String entryTimeString = String.format("%s %s", entry.getDate(), entry.getTime());
         try {
@@ -1961,11 +1977,8 @@ public class NativeDevice implements IManagedTestDevice {
         }
     }
 
-    /**
-     * Factory method to create a {@link LogcatReceiver}.
-     * <p/>
-     * Exposed for unit testing.
-     */
+    /** Factory method to create a {@link LogcatReceiver}. */
+    @VisibleForTesting
     LogcatReceiver createLogcatReceiver() {
         String logcatOptions = mOptions.getLogcatOptions();
         if (logcatOptions == null) {
@@ -2131,10 +2144,8 @@ public class NativeDevice implements IManagedTestDevice {
         return null;
     }
 
-    /**
-     * Internal Helper method to get the bugreportz zip file as a {@link File}.
-     * Exposed for testing.
-     */
+    /** Internal Helper method to get the bugreportz zip file as a {@link File}. */
+    @VisibleForTesting
     protected File getBugreportzInternal() {
         CollectingOutputReceiver receiver = new CollectingOutputReceiver();
         // Does not rely on {@link ITestDevice#executeAdbCommand(String...)} because it does not
@@ -2249,9 +2260,11 @@ public class NativeDevice implements IManagedTestDevice {
         // times
         Random rnd = new Random();
         int backoffSlotCount = 2;
-        int waitTime = mOptions.getWifiRetryWaitTime();
+        int slotTime = mOptions.getWifiRetryWaitTime();
+        int waitTime = 0;
         IWifiHelper wifi = createWifiHelper();
         try {
+            long startTime = mClock.millis();
             for (int i = 1; i <= mOptions.getWifiAttempts(); i++) {
                 CLog.i("Connecting to wifi network %s on %s", wifiSsid, getSerialNumber());
                 boolean success =
@@ -2276,10 +2289,16 @@ public class NativeDevice implements IManagedTestDevice {
                             i,
                             mOptions.getWifiAttempts());
                 }
+                if (mClock.millis() - startTime >= mOptions.getMaxWifiConnectTime()) {
+                    CLog.e(
+                            "Failed to connect to wifi after %d ms. Aborting.",
+                            mOptions.getMaxWifiConnectTime());
+                    break;
+                }
                 if (i < mOptions.getWifiAttempts()) {
                     if (mOptions.isWifiExpoRetryEnabled()) {
                         // use binary exponential back-offs when retrying.
-                        waitTime *= rnd.nextInt(backoffSlotCount);
+                        waitTime = rnd.nextInt(backoffSlotCount) * slotTime;
                         backoffSlotCount *= 2;
                     }
                     CLog.e("Waiting for %d ms before reconnecting to %s...", waitTime, wifiSsid);
@@ -2461,10 +2480,12 @@ public class NativeDevice implements IManagedTestDevice {
 
     /**
      * Create a {@link WifiHelper} to use
-     * <p/>
-     * Exposed so unit tests can mock
+     *
+     * <p>
+     *
      * @throws DeviceNotAvailableException
      */
+    @VisibleForTesting
     IWifiHelper createWifiHelper() throws DeviceNotAvailableException {
         // current wifi helper won't work on AndroidNativeDevice
         // TODO: create a new Wifi helper with supported feature of AndroidNativeDevice when
@@ -2643,11 +2664,7 @@ public class NativeDevice implements IManagedTestDevice {
         doReboot();
     }
 
-    /**
-     * Exposed for unit testing.
-     *
-     * @throws DeviceNotAvailableException
-     */
+    @VisibleForTesting
     void doReboot() throws DeviceNotAvailableException, UnsupportedOperationException {
         if (TestDeviceState.FASTBOOT == getDeviceState()) {
             CLog.i("device %s in fastboot. Rebooting to userspace.", getSerialNumber());
@@ -3096,11 +3113,8 @@ public class NativeDevice implements IManagedTestDevice {
         if (obj == null) throw new NullPointerException();
     }
 
-    /**
-     * Retrieve this device's recovery mechanism.
-     * <p/>
-     * Exposed for unit testing.
-     */
+    /** Retrieve this device's recovery mechanism. */
+    @VisibleForTesting
     IDeviceRecovery getRecovery() {
         return mRecovery;
     }
@@ -3394,10 +3408,8 @@ public class NativeDevice implements IManagedTestDevice {
         return new DeviceEventResponse(newState, stateChanged);
     }
 
-    /**
-     * Helper to get the time difference between the device and the host. Use Epoch time.
-     * Exposed for testing.
-     */
+    /** Helper to get the time difference between the device and the host. Use Epoch time. */
+    @VisibleForTesting
     protected long getDeviceTimeOffset(Date date) throws DeviceNotAvailableException {
         Long deviceTime = getDeviceDate();
         long offset = 0;
@@ -3916,11 +3928,8 @@ public class NativeDevice implements IManagedTestDevice {
         return true;
     }
 
-    /**
-     * Gets the {@link IHostOptions} instance to use.
-     *
-     * <p>Exposed for unit testing
-     */
+    /** Gets the {@link IHostOptions} instance to use. */
+    @VisibleForTesting
     IHostOptions getHostOptions() {
         return GlobalConfiguration.getInstance().getHostOptions();
     }

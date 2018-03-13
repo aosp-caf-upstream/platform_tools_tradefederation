@@ -23,11 +23,13 @@ import static org.mockito.Mockito.mock;
 
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.build.IDeviceBuildInfo;
+import com.android.tradefed.config.Configuration;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.config.IConfiguration;
 import com.android.tradefed.config.OptionSetter;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.invoker.InvocationContext;
+import com.android.tradefed.result.ILogSaver;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.testtype.StubTest;
@@ -45,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Unit tests for {@link TfSuiteRunner}.
@@ -59,10 +62,16 @@ public class TfSuiteRunnerTest {
                     + "</configuration>";
 
     private TfSuiteRunner mRunner;
+    private IConfiguration mStubMainConfiguration;
+    private ILogSaver mMockLogSaver;
 
     @Before
     public void setUp() {
         mRunner = new TfSuiteRunner();
+        mMockLogSaver = EasyMock.createMock(ILogSaver.class);
+        mStubMainConfiguration = new Configuration("stub", "stub");
+        mStubMainConfiguration.setLogSaver(mMockLogSaver);
+        mRunner.setConfiguration(mStubMainConfiguration);
     }
 
     /**
@@ -184,7 +193,7 @@ public class TfSuiteRunnerTest {
         // runs the expanded suite
         listener.testModuleStarted(EasyMock.anyObject());
         listener.testRunStarted("suite/stub1", 0);
-        listener.testRunEnded(EasyMock.anyLong(), EasyMock.anyObject());
+        listener.testRunEnded(EasyMock.anyLong(), (Map<String, String>) EasyMock.anyObject());
         listener.testModuleEnded();
         EasyMock.replay(listener);
         mRunner.run(listener);
