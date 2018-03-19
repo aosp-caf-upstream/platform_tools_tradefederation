@@ -19,6 +19,7 @@ package com.android.tradefed.testtype.junit4;
 import static org.junit.Assert.assertTrue;
 
 import com.android.annotations.VisibleForTesting;
+import com.android.ddmlib.IDevice;
 import com.android.ddmlib.Log.LogLevel;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.TestResult.TestStatus;
@@ -141,7 +142,9 @@ public abstract class BaseHostJUnit4Test
      */
     public final void installPackage(ITestDevice device, String apkFileName, String... options)
             throws DeviceNotAvailableException, TargetSetupError {
-        SuiteApkInstaller installer = new SuiteApkInstaller();
+        SuiteApkInstaller installer = createSuiteApkInstaller();
+        // Force the apk clean up
+        installer.setCleanApk(true);
         // Store the preparer for cleanup
         mInstallers.put(installer, device);
         installer.addTestFileName(apkFileName);
@@ -175,7 +178,9 @@ public abstract class BaseHostJUnit4Test
     public final void installPackageAsUser(
             ITestDevice device, String apkFileName, boolean grantPermission, int userId)
             throws DeviceNotAvailableException, TargetSetupError {
-        SuiteApkInstaller installer = new SuiteApkInstaller();
+        SuiteApkInstaller installer = createSuiteApkInstaller();
+        // Force the apk clean up
+        installer.setCleanApk(true);
         // Store the preparer for cleanup
         mInstallers.put(installer, device);
         installer.addTestFileName(apkFileName);
@@ -219,7 +224,8 @@ public abstract class BaseHostJUnit4Test
                 testTimeoutMs,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -245,7 +251,8 @@ public abstract class BaseHostJUnit4Test
                 testTimeoutMs,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -285,7 +292,8 @@ public abstract class BaseHostJUnit4Test
                 DEFAULT_TEST_TIMEOUT_MS,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -311,7 +319,8 @@ public abstract class BaseHostJUnit4Test
                 DEFAULT_TEST_TIMEOUT_MS,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -342,7 +351,8 @@ public abstract class BaseHostJUnit4Test
                 testTimeoutMs,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -375,7 +385,8 @@ public abstract class BaseHostJUnit4Test
                 testTimeoutMs,
                 DEFAULT_MAX_TIMEOUT_TO_OUTPUT_MS,
                 0L,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -410,7 +421,8 @@ public abstract class BaseHostJUnit4Test
                 testTimeoutMs,
                 maxTimeToOutputMs,
                 maxInstrumentationTimeoutMs,
-                true);
+                true,
+                false);
     }
 
     /**
@@ -432,7 +444,8 @@ public abstract class BaseHostJUnit4Test
                 options.getTestTimeoutMs(),
                 options.getMaxTimeToOutputMs(),
                 options.getMaxInstrumentationTimeoutMs(),
-                options.shouldCheckResults());
+                options.shouldCheckResults(),
+                options.isHiddenApiCheckDisabled());
     }
 
     /**
@@ -447,6 +460,8 @@ public abstract class BaseHostJUnit4Test
      * @param testTimeoutMs the timeout in millisecond to be applied to each test case.
      * @param maxTimeToOutputMs the max timeout the test has to start outputting something.
      * @param maxInstrumentationTimeoutMs the max timeout the full instrumentation has to complete.
+     * @param checkResults whether or not the results are checked for crashes.
+     * @param isHiddenApiCheckDisabled whether or not we should disable the hidden api check.
      * @return True if it succeeded without failure. False otherwise.
      */
     public final boolean runDeviceTests(
@@ -459,7 +474,8 @@ public abstract class BaseHostJUnit4Test
             Long testTimeoutMs,
             Long maxTimeToOutputMs,
             Long maxInstrumentationTimeoutMs,
-            boolean checkResults)
+            boolean checkResults,
+            boolean isHiddenApiCheckDisabled)
             throws DeviceNotAvailableException {
         TestRunResult runResult =
                 doRunTests(
@@ -471,7 +487,8 @@ public abstract class BaseHostJUnit4Test
                         userId,
                         testTimeoutMs,
                         maxTimeToOutputMs,
-                        maxInstrumentationTimeoutMs);
+                        maxInstrumentationTimeoutMs,
+                        isHiddenApiCheckDisabled);
         mLatestInstruRes = runResult;
         printTestResult(runResult);
         if (checkResults) {
@@ -524,10 +541,22 @@ public abstract class BaseHostJUnit4Test
             Integer userId,
             Long testTimeoutMs,
             Long maxTimeToOutputMs,
-            Long maxInstrumentationTimeoutMs)
+            Long maxInstrumentationTimeoutMs,
+            boolean isHiddenApiCheckDisabled)
             throws DeviceNotAvailableException {
-        RemoteAndroidTestRunner testRunner =
-                new RemoteAndroidTestRunner(pkgName, runner, device.getIDevice());
+        RemoteAndroidTestRunner testRunner = createTestRunner(pkgName, runner, device.getIDevice());
+        String runOptions = "";
+        if (isHiddenApiCheckDisabled) {
+            runOptions += "--no-hidden-api-checks ";
+        }
+        if (getAbi() != null) {
+            runOptions += String.format("--abi %s", getAbi().getName());
+        }
+        // Set the run options if any.
+        if (!runOptions.isEmpty()) {
+            testRunner.setRunOptions(runOptions);
+        }
+
         if (testClassName != null && testMethodName != null) {
             testRunner.setMethodName(testClassName, testMethodName);
         } else if (testClassName != null) {
@@ -554,6 +583,12 @@ public abstract class BaseHostJUnit4Test
             assertTrue(device.runInstrumentationTestsAsUser(testRunner, userId, listener));
         }
         return listener.getCurrentRunResults();
+    }
+
+    @VisibleForTesting
+    RemoteAndroidTestRunner createTestRunner(
+            String packageName, String runnerName, IDevice device) {
+        return new RemoteAndroidTestRunner(packageName, runnerName, device);
     }
 
     @VisibleForTesting
@@ -627,4 +662,8 @@ public abstract class BaseHostJUnit4Test
         return getDevice().hasFeature("feature:" + feature);
     }
 
+    @VisibleForTesting
+    SuiteApkInstaller createSuiteApkInstaller() {
+        return new SuiteApkInstaller();
+    }
 }

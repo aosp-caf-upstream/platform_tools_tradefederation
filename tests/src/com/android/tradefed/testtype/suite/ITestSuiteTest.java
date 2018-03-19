@@ -44,6 +44,8 @@ import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.suite.checker.ISystemStatusChecker;
 import com.android.tradefed.suite.checker.KeyguardStatusChecker;
+import com.android.tradefed.targetprep.StubTargetPreparer;
+import com.android.tradefed.testtype.FakeTest;
 import com.android.tradefed.testtype.IAbi;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.testtype.StubTest;
@@ -908,12 +910,119 @@ public class ITestSuiteTest {
     @Test
     public void testWhitelistRunner_notFound() throws Exception {
         OptionSetter setter = new OptionSetter(mTestSuite);
-        setter.setOptionValue(ITestSuite.WHITE_LIST_RUNNER, "com.I.dont.exist.runner");
+        setter.setOptionValue(ITestSuite.RUNNER_WHITELIST, "com.I.dont.exist.runner");
         try {
             mTestSuite.run(mMockListener);
             fail("Should have thrown an exception.");
         } catch (RuntimeException expected) {
             assertTrue(expected.getCause() instanceof ConfigurationException);
         }
+    }
+
+    /**
+     * Test that if the preparer is whitelisted it is left untouched by {@link
+     * ITestSuite#filterPreparers(IConfiguration, Set)}.
+     */
+    @Test
+    public void testPreparerWhitelist() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        config.setTargetPreparer(new StubTargetPreparer());
+        Set<String> allowedPreparers = new HashSet<>();
+        allowedPreparers.add(StubTargetPreparer.class.getName());
+        assertEquals(1, config.getTargetPreparers().size());
+        mTestSuite.filterPreparers(config, allowedPreparers);
+        assertEquals(1, config.getTargetPreparers().size());
+    }
+
+    /**
+     * Test that if the preparer whitelist is empty then nothing is done, we do not filter the
+     * preparer.
+     */
+    @Test
+    public void testPreparerWhitelist_empty() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        config.setTargetPreparer(new StubTargetPreparer());
+        // Empty whitelist should allow everything to run.
+        Set<String> allowedPreparers = new HashSet<>();
+        assertEquals(1, config.getTargetPreparers().size());
+        mTestSuite.filterPreparers(config, allowedPreparers);
+        assertEquals(1, config.getTargetPreparers().size());
+    }
+
+    /**
+     * Test that if the preparer is not whitelisted it is left filtered out by {@link
+     * ITestSuite#filterPreparers(IConfiguration, Set)}.
+     */
+    @Test
+    public void testPreparerWhitelist_filtered() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        config.setTargetPreparer(new StubTargetPreparer());
+        Set<String> allowedPreparers = new HashSet<>();
+        allowedPreparers.add("some.other.preparer");
+        assertEquals(1, config.getTargetPreparers().size());
+        mTestSuite.filterPreparers(config, allowedPreparers);
+        assertEquals(0, config.getTargetPreparers().size());
+    }
+
+    /**
+     * Test that if the runner is allowed to run, the config is untouched and can run through {@link
+     * ITestSuite#filterByRunnerType(IConfiguration, Set)}.
+     */
+    @Test
+    public void testWhiteListFiltering() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        List<IRemoteTest> tests = new ArrayList<>();
+        tests.add(new StubTest());
+        config.setTests(tests);
+        Set<String> allowedRunners = new HashSet<>();
+        allowedRunners.add(StubTest.class.getName());
+        assertTrue(mTestSuite.filterByRunnerType(config, allowedRunners));
+    }
+
+    /** Test that if no runner whitelist is provided, we skip the runner check. */
+    @Test
+    public void testWhiteListFiltering_empty() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        List<IRemoteTest> tests = new ArrayList<>();
+        tests.add(new StubTest());
+        config.setTests(tests);
+        Set<String> allowedRunners = new HashSet<>();
+        assertTrue(mTestSuite.filterByRunnerType(config, allowedRunners));
+    }
+
+    /**
+     * Test that if the runner is not allowed to run, the config is rejected if all its runner are
+     * not allowed through {@link ITestSuite#filterByRunnerType(IConfiguration, Set)}.
+     */
+    @Test
+    public void testWhiteListFiltering_disallow() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        List<IRemoteTest> tests = new ArrayList<>();
+        tests.add(new StubTest());
+        config.setTests(tests);
+        Set<String> allowedRunners = new HashSet<>();
+        // Our runner is not allowed.
+        allowedRunners.add(FakeTest.class.getName());
+        assertFalse(mTestSuite.filterByRunnerType(config, allowedRunners));
+    }
+
+    /**
+     * Test that if only one of the runner is allowed to run. The config is modified to only keep
+     * the allowed runner and then is allowed to run.
+     */
+    @Test
+    public void testWhiteListFiltering_partialModule() throws Exception {
+        IConfiguration config = new Configuration("name", "description");
+        List<IRemoteTest> tests = new ArrayList<>();
+        tests.add(new StubTest());
+        tests.add(new FakeTest());
+        config.setTests(tests);
+        Set<String> allowedRunners = new HashSet<>();
+        // Only one of the runner is allowed
+        allowedRunners.add(FakeTest.class.getName());
+        // The config is allowed to run but was modified to only include the accepted runner.
+        assertTrue(mTestSuite.filterByRunnerType(config, allowedRunners));
+        assertEquals(1, config.getTests().size());
+        assertTrue(config.getTests().get(0) instanceof FakeTest);
     }
 }

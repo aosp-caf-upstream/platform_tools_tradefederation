@@ -18,6 +18,7 @@
 
 import re
 import unittest
+import os
 import mock
 
 # pylint: disable=import-error
@@ -67,6 +68,7 @@ class ModuleFinderUnittests(unittest.TestCase):
         """Set up stuff for testing."""
         self.mod_finder = module_finder.ModuleFinder()
         self.mod_finder.module_info = mock.Mock(spec=module_info.ModuleInfo)
+        self.mod_finder.module_info.path_to_module_info = {}
         self.mod_finder.root_dir = uc.ROOT
 
     def test_is_vts_module(self):
@@ -259,7 +261,6 @@ class ModuleFinderUnittests(unittest.TestCase):
     @mock.patch.object(module_finder.ModuleFinder, '_get_build_targets')
     @mock.patch.object(module_finder.ModuleFinder, '_is_vts_module',
                        return_value=False)
-    @mock.patch.object(module_finder.ModuleFinder, '_is_auto_gen_test_config')
     @mock.patch.object(test_finder_utils, 'get_fully_qualified_class_name',
                        return_value=uc.FULL_CLASS_NAME)
     @mock.patch('os.path.realpath',
@@ -267,9 +268,9 @@ class ModuleFinderUnittests(unittest.TestCase):
     @mock.patch('os.path.isfile', side_effect=unittest_utils.isfile_side_effect)
     @mock.patch.object(test_finder_utils, 'find_parent_module_dir')
     @mock.patch('os.path.exists')
-    # #pylint: disable=unused-argument
+    #pylint: disable=unused-argument
     def test_find_test_by_path(self, mock_pathexists, mock_dir, _isfile, _real,
-                               _fqcn, mock_is_auto_gen, _vts, mock_build):
+                               _fqcn, _vts, mock_build):
         """Test find_test_by_path."""
         mock_build.return_value = set()
         # Check that we don't return anything with invalid test references.
@@ -280,16 +281,8 @@ class ModuleFinderUnittests(unittest.TestCase):
         mock_dir.return_value = None
         unittest_utils.assert_equal_testinfos(
             self, None, self.mod_finder.find_test_by_path('no/module'))
-
-        # Check that we handle auto gen configs.
-        mock_build.return_value = uc.MODULE_BUILD_TARGETS
         self.mod_finder.module_info.get_module_name.return_value = uc.MODULE_NAME
-        mock_dir.side_effect = [atest_error.TestWithNoModuleError(),
-                                uc.MODULE_DIR]
-        mock_is_auto_gen.return_value = True
-        unittest_utils.assert_equal_testinfos(
-            self, uc.MODULE_INFO, self.mod_finder.find_test_by_path('no/test/config'))
-        mock_dir.side_effect = None
+
 
         # Happy path testing.
         mock_dir.return_value = uc.MODULE_DIR
@@ -308,9 +301,29 @@ class ModuleFinderUnittests(unittest.TestCase):
         unittest_utils.assert_equal_testinfos(
             self, self.mod_finder.find_test_by_path(class_with_methods),
             FLAT_METHOD_INFO)
-        unittest_utils.assert_equal_testinfos(
-            self, uc.MODULE_INFO, self.mod_finder.find_test_by_path('/some/dir'))
 
+
+    @mock.patch.object(module_finder.ModuleFinder, '_get_build_targets',
+                       return_value=uc.MODULE_BUILD_TARGETS)
+    @mock.patch.object(module_finder.ModuleFinder, '_is_vts_module',
+                       return_value=False)
+    @mock.patch.object(test_finder_utils, 'find_parent_module_dir',
+                       return_value=os.path.relpath(uc.TEST_DATA_DIR, uc.ROOT))
+    @mock.patch.object(module_finder.ModuleFinder, '_is_auto_gen_test_config',
+                       return_value=False)
+    #pylint: disable=unused-argument
+    def test_find_test_by_path_part_2(self, _is_auto_gen, _find_parent, _is_vts, _get_build):
+        """Test find_test_by_path for directories."""
+        # Dir with java files in it, should run as package
+        class_dir = os.path.join(uc.TEST_DATA_DIR, 'path_testing')
+        self.mod_finder.module_info.get_module_name.return_value = uc.MODULE_NAME
+        unittest_utils.assert_equal_testinfos(
+            self, uc.PATH_INFO, self.mod_finder.find_test_by_path(class_dir))
+        # Dir with no java files in it, should run whole module
+        empty_dir = os.path.join(uc.TEST_DATA_DIR, 'path_testing_empty')
+        unittest_utils.assert_equal_testinfos(
+            self, uc.EMPTY_PATH_INFO,
+            self.mod_finder.find_test_by_path(empty_dir))
 
 if __name__ == '__main__':
     unittest.main()
