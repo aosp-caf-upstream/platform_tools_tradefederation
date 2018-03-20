@@ -610,23 +610,32 @@ public class FileUtil {
         }
     }
 
+    /**
+     * Note: We should never use CLog in here, since it also relies on that method, this would lead
+     * to infinite recursion.
+     */
     private static void verifyDiskSpace(File file) {
         // Based on empirical testing File.getUsableSpace is a low cost operation (~ 100 us for
         // local disk, ~ 100 ms for network disk). Therefore call it every time tmp file is
         // created
         long usableSpace = 0L;
-        try {
-            usableSpace = Files.getFileStore(file.toPath()).getUsableSpace();
-        } catch (IOException ioe) {
-            CLog.w("Failed to get usable space for %s, ignored", file.getAbsolutePath());
-            CLog.w(ioe);
-            return;
+        File toCheck = file;
+        if (!file.isDirectory() && file.getParentFile() != null) {
+            // If the given file is not a directory it might not work properly so using the parent
+            // in that case.
+            toCheck = file.getParentFile();
         }
+        usableSpace = toCheck.getUsableSpace();
+
         long minDiskSpace = mMinDiskSpaceMb * 1024 * 1024;
         if (usableSpace < minDiskSpace) {
-            throw new LowDiskSpaceException(String.format(
-                    "Available space on %s is %.2f MB. Min is %d MB", file.getAbsolutePath(),
-                    usableSpace / (1024.0 * 1024.0), mMinDiskSpaceMb));
+            String message =
+                    String.format(
+                            "Available space on %s is %.2f MB. Min is %d MB.",
+                            toCheck.getAbsolutePath(),
+                            usableSpace / (1024.0 * 1024.0),
+                            mMinDiskSpaceMb);
+            throw new LowDiskSpaceException(message);
         }
     }
 

@@ -149,6 +149,22 @@ def get_fully_qualified_class_name(test_path):
     raise atest_error.MissingPackageNameError(test_path)
 
 
+def get_package_name(file_name):
+    """Parse the package name from a java file.
+
+    Args:
+        file_name: A string of the absolute path to the java file.
+
+    Returns:
+        A string of the package name or None
+      """
+    with open(file_name) as data:
+        for line in data:
+            match = _PACKAGE_RE.match(line)
+            if match:
+                return match.group('package')
+
+
 def extract_test_path(output):
     """Extract the test path from the output of a unix 'find' command.
 
@@ -193,6 +209,7 @@ def run_find_cmd(ref_type, search_dir, target):
     logging.debug('%s find cmd out: %s', ref_name, out)
     return extract_test_path(out)
 
+
 def find_class_file(search_dir, class_name):
     """Find a path to a class file given a search dir and a class name.
 
@@ -210,6 +227,7 @@ def find_class_file(search_dir, class_name):
         find_target = class_name
         ref_type = FIND_REFERENCE_TYPE.CLASS
     return run_find_cmd(ref_type, search_dir, find_target)
+
 
 def is_equal_or_sub_dir(sub_dir, parent_dir):
     """Return True sub_dir is sub dir or equal to parent_dir.
@@ -229,16 +247,14 @@ def is_equal_or_sub_dir(sub_dir, parent_dir):
         return False
     return os.path.commonprefix([sub_dir, parent_dir]) == parent_dir
 
-
-def find_parent_module_dir(root_dir, start_dir,
-                           file_to_locate=constants.MODULE_CONFIG):
+def find_parent_module_dir(root_dir, start_dir, module_info):
     """From current dir search up file tree until root dir for module dir.
 
     Args:
       start_dir: A string of the dir to start searching up from.
       root_dir: A string  of the dir that is the parent of the start dir.
-      file_to_locate: Name of the file to locate in parent module dir,
-              default is set to AndroidTest.xml
+      module_info: ModuleInfo object containing module information from the
+                   build system.
 
     Returns:
         A string of the module dir relative to root.
@@ -249,13 +265,30 @@ def find_parent_module_dir(root_dir, start_dir,
     """
     if not is_equal_or_sub_dir(start_dir, root_dir):
         raise ValueError('%s not in repo %s' % (start_dir, root_dir))
+    module_dir = None
     current_dir = start_dir
     while current_dir != root_dir:
-        if os.path.isfile(os.path.join(current_dir, file_to_locate)):
-            return os.path.relpath(current_dir, root_dir)
+        # If we find an AndroidTest.xml, we know we found the right directory.
+        if os.path.isfile(os.path.join(current_dir, constants.MODULE_CONFIG)):
+            module_dir = os.path.relpath(current_dir, root_dir)
+            break
+        # If we haven't found a possible auto-generated config location, check
+        # now.
+        if not module_dir:
+            rel_dir = os.path.relpath(current_dir, root_dir)
+            module_list = module_info.path_to_module_info.get(rel_dir, [])
+            # Verify only one module at this level has an auto_test_config.
+            if len([x for x in module_list if x.get('auto_test_config')]) == 1:
+                # We found a single test module!
+                module_dir = rel_dir
+                # But keep searching in case there's an AndroidTest.xml in a
+                # parent folder. Example: a class belongs to an test apk that's
+                # part of a hostside test setup (common in cts).
         current_dir = os.path.dirname(current_dir)
-    raise atest_error.TestWithNoModuleError('No Parent Module Dir for: %s' %
-                                            start_dir)
+    if not module_dir:
+        raise atest_error.TestWithNoModuleError('No Parent Module Dir for: %s'
+                                                % start_dir)
+    return module_dir
 
 
 def get_targets_from_xml(xml_file, module_info):
@@ -272,6 +305,7 @@ def get_targets_from_xml(xml_file, module_info):
     """
     xml_root = ET.parse(xml_file).getroot()
     return get_targets_from_xml_root(xml_root, module_info)
+
 
 def _get_apk_target(apk_target):
     """Return the sanitized apk_target string from the xml.
@@ -311,6 +345,7 @@ def _is_apk_target(name, value):
     if name == 'push' and value.endswith(_APK_SUFFIX):
         return True
     return False
+
 
 def get_targets_from_xml_root(xml_root, module_info):
     """Retrieve build targets from the given xml root.
@@ -356,6 +391,7 @@ def get_targets_from_xml_root(xml_root, module_info):
     logging.debug('Targets found in config file: %s', targets)
     return targets
 
+
 def _get_vts_push_group_targets(push_file, rel_out_dir):
     """Retrieve vts push group build targets.
 
@@ -388,11 +424,12 @@ def _get_vts_push_group_targets(push_file, rel_out_dir):
             targets.add(os.path.join(rel_out_dir, sanitized_target))
     return targets
 
+
 def _specified_bitness(xml_root):
     """Check if the xml file contains the option append-bitness.
 
     Args:
-        xml_file: abs path to xml file.
+        xml_root: abs path to xml file.
 
     Returns:
         True if xml specifies to append-bitness, False otherwise.
@@ -404,6 +441,7 @@ def _specified_bitness(xml_root):
         if name == _VTS_BITNESS and value == _VTS_BITNESS_TRUE:
             return True
     return False
+
 
 def _get_vts_binary_src_target(value, rel_out_dir):
     """Parse out the vts binary src target.
@@ -433,6 +471,7 @@ def _get_vts_binary_src_target(value, rel_out_dir):
         target = value.split(_XML_PUSH_DELIM, 1)[0].strip()
         target = os.path.join(rel_out_dir, target)
     return target
+
 
 def get_targets_from_vts_xml(xml_file, rel_out_dir, module_info):
     """Parse a vts xml for test dependencies we need to build.
@@ -484,6 +523,7 @@ def get_targets_from_vts_xml(xml_file, rel_out_dir, module_info):
                 targets.add(os.path.join(rel_out_dir, push_target))
     logging.debug('Targets found in config file: %s', targets)
     return targets
+
 
 def get_dir_path_and_filename(path):
     """Return tuple of dir and file name from given path.
