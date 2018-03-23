@@ -453,8 +453,11 @@ public class ITestSuiteIntegrationTest {
         StrictShardHelper helper = new StrictShardHelper();
         TestParallelShardRescheduler rescheduler = new TestParallelShardRescheduler();
         helper.shardConfig(config, mContext, rescheduler);
-        for (Thread t : rescheduler.mRunning) {
-            t.join(2000);
+        // Wait until all results are received, we expect 2 modules.
+        while (mListener.getRunResults().size() < 2) {
+            for (Thread t : rescheduler.mRunning) {
+                t.join(2000);
+            }
         }
 
         assertEquals(2, mListener.getTotalModules());
@@ -529,8 +532,8 @@ public class ITestSuiteIntegrationTest {
         // Only a subpart of the module runs. 2 out of 3 tests.
         assertEquals(1, mListener.getTotalModules());
         assertEquals(1, mListener.getCompleteModules());
-        assertEquals(2, mListener.getTotalTests());
-        assertEquals(2, mListener.getPassedTests());
+        assertEquals(1, mListener.getTotalTests());
+        assertEquals(1, mListener.getPassedTests());
         assertEquals(0, mListener.getFailedTests());
     }
 
@@ -543,8 +546,8 @@ public class ITestSuiteIntegrationTest {
         // Only a subpart of the module runs. 1 out of 3 tests.
         assertEquals(1, mListener.getTotalModules());
         assertEquals(1, mListener.getCompleteModules());
-        assertEquals(1, mListener.getTotalTests());
-        assertEquals(1, mListener.getPassedTests());
+        assertEquals(2, mListener.getTotalTests());
+        assertEquals(2, mListener.getPassedTests());
         assertEquals(0, mListener.getFailedTests());
     }
 
