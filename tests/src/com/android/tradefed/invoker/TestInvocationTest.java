@@ -24,6 +24,7 @@ import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.build.IBuildInfo.BuildInfoProperties;
 import com.android.tradefed.build.IBuildProvider;
 import com.android.tradefed.build.IDeviceBuildInfo;
+import com.android.tradefed.build.IDeviceBuildInfo.ExternalLinkedDir;
 import com.android.tradefed.build.IDeviceBuildProvider;
 import com.android.tradefed.command.CommandOptions;
 import com.android.tradefed.command.CommandRunner.ExitCode;
@@ -77,6 +78,7 @@ import com.android.tradefed.testtype.IShardableTest;
 import com.android.tradefed.testtype.IStrictShardableTest;
 import com.android.tradefed.testtype.StubTest;
 import com.android.tradefed.util.FileUtil;
+import com.android.tradefed.util.SystemUtil.EnvVariable;
 
 import com.google.common.util.concurrent.SettableFuture;
 
@@ -524,25 +526,25 @@ public class TestInvocationTest extends TestCase {
                                 EasyMock.eq(LOGCAT_NAME_SETUP),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(LOGCAT_NAME_TEST),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(LOGCAT_NAME_TEARDOWN),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(TestInvocation.TRADEFED_LOG_NAME),
                                 EasyMock.eq(LogDataType.TEXT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         resumeListener.testLog(
                 EasyMock.eq(LOGCAT_NAME_SETUP),
                 EasyMock.eq(LogDataType.LOGCAT),
@@ -565,8 +567,9 @@ public class TestInvocationTest extends TestCase {
         Capture<IConfiguration> capturedConfig = new Capture<IConfiguration>();
         EasyMock.expect(mockRescheduler.scheduleConfig(EasyMock.capture(capturedConfig)))
                 .andReturn(Boolean.TRUE);
+        // When resuming the original build provider is still going to handle the clean up.
         mMockBuildProvider.cleanUp(mMockBuildInfo);
-        EasyMock.expectLastCall().times(2);
+        EasyMock.expectLastCall().times(4);
         mMockDevice.clearLastConnectedWifiNetwork();
         mMockDevice.stopLogcat();
 
@@ -592,25 +595,25 @@ public class TestInvocationTest extends TestCase {
                                 EasyMock.eq(LOGCAT_NAME_SETUP),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(LOGCAT_NAME_TEST),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(LOGCAT_NAME_TEARDOWN),
                                 EasyMock.eq(LogDataType.LOGCAT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         EasyMock.expect(
                         mMockLogSaver.saveLogData(
                                 EasyMock.eq(TestInvocation.TRADEFED_LOG_NAME),
                                 EasyMock.eq(LogDataType.TEXT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         resumeListener.testLog(
                 EasyMock.eq(LOGCAT_NAME_SETUP),
                 EasyMock.eq(LogDataType.LOGCAT),
@@ -630,8 +633,6 @@ public class TestInvocationTest extends TestCase {
         resumeListener.invocationEnded(EasyMock.anyLong());
         mMockLogSaver.invocationEnded(EasyMock.anyLong());
         EasyMock.expect(resumeListener.getSummary()).andReturn(null);
-        mMockBuildInfo.cleanUp();
-        EasyMock.expectLastCall().times(2);
         mMockLogger.closeLog();
         EasyMock.expectLastCall().times(3);
         mMockDevice.clearLastConnectedWifiNetwork();
@@ -1183,7 +1184,7 @@ public class TestInvocationTest extends TestCase {
                                     EasyMock.eq(LOGCAT_NAME_SETUP),
                                     EasyMock.eq(LogDataType.LOGCAT),
                                     (InputStream) EasyMock.anyObject()))
-                    .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                    .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
             mMockTestListener.testLog(
                     EasyMock.eq(LOGCAT_NAME_SETUP),
                     EasyMock.eq(LogDataType.LOGCAT),
@@ -1207,7 +1208,7 @@ public class TestInvocationTest extends TestCase {
                                     EasyMock.eq(LOGCAT_NAME_ERROR),
                                     EasyMock.eq(LogDataType.LOGCAT),
                                     (InputStream) EasyMock.anyObject()))
-                    .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                    .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
             mMockTestListener.testLog(
                     EasyMock.eq(LOGCAT_NAME_ERROR),
                     EasyMock.eq(LogDataType.LOGCAT),
@@ -1223,7 +1224,7 @@ public class TestInvocationTest extends TestCase {
                                     EasyMock.eq(LOGCAT_NAME_TEST),
                                     EasyMock.eq(LogDataType.LOGCAT),
                                     (InputStream) EasyMock.anyObject()))
-                    .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                    .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
             mMockTestListener.testLog(
                     EasyMock.eq(LOGCAT_NAME_TEST),
                     EasyMock.eq(LogDataType.LOGCAT),
@@ -1249,7 +1250,7 @@ public class TestInvocationTest extends TestCase {
                                     EasyMock.eq(LOGCAT_NAME_TEARDOWN),
                                     EasyMock.eq(LogDataType.LOGCAT),
                                     (InputStream) EasyMock.anyObject()))
-                    .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                    .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
             mMockTestListener.testLog(
                     EasyMock.eq(LOGCAT_NAME_TEARDOWN),
                     EasyMock.eq(LogDataType.LOGCAT),
@@ -1265,7 +1266,7 @@ public class TestInvocationTest extends TestCase {
                                 EasyMock.eq(TestInvocation.TRADEFED_LOG_NAME),
                                 EasyMock.eq(LogDataType.TEXT),
                                 (InputStream) EasyMock.anyObject()))
-                .andReturn(new LogFile(PATH, URL, false /* compressed */, true /* text */));
+                .andReturn(new LogFile(PATH, URL, LogDataType.TEXT));
         mMockTestListener.testLog(EasyMock.eq(TestInvocation.TRADEFED_LOG_NAME),
                 EasyMock.eq(LogDataType.TEXT), (InputStreamSource)EasyMock.anyObject());
         mMockSummaryListener.testLog(EasyMock.eq(TestInvocation.TRADEFED_LOG_NAME),
@@ -1439,8 +1440,6 @@ public class TestInvocationTest extends TestCase {
         EasyMock.expect(mMockBuildProvider.getBuild()).andReturn(mMockBuildInfo);
         EasyMock.expect(mMockBuildInfo.getTestTag()).andStubReturn("");
         mMockBuildInfo.addBuildAttribute("command_line_args", commandLine);
-        mMockLogSaver.invocationStarted((IInvocationContext)EasyMock.anyObject());
-        EasyMock.expectLastCall();
         mMockTestListener.invocationStarted((IInvocationContext)EasyMock.anyObject());
         EasyMock.expectLastCall();
         mMockSummaryListener.invocationStarted((IInvocationContext)EasyMock.anyObject());
@@ -1595,9 +1594,9 @@ public class TestInvocationTest extends TestCase {
                             }
 
                             @Override
-                            List<File> getExternalTestCasesDirs() {
+                            File getExternalTestCasesDirs(EnvVariable envVar) {
                                 // Return empty list to ensure we do not have any environment loaded
-                                return new ArrayList<>();
+                                return null;
                             }
                         };
                     }
@@ -1657,10 +1656,11 @@ public class TestInvocationTest extends TestCase {
                                 }
 
                                 @Override
-                                List<File> getExternalTestCasesDirs() {
-                                    List<File> list = new ArrayList<>();
-                                    list.add(tmpExternalTestsDir);
-                                    return list;
+                                File getExternalTestCasesDirs(EnvVariable envVar) {
+                                    if (EnvVariable.ANDROID_TARGET_OUT_TESTCASES.equals(envVar)) {
+                                        return tmpExternalTestsDir;
+                                    }
+                                    return null;
                                 }
                             };
                         }
@@ -1680,7 +1680,7 @@ public class TestInvocationTest extends TestCase {
             mStubConfiguration.getTargetPreparers().add(mockCleaner);
 
             mMockBuildInfo.setFile(
-                    EasyMock.contains(tmpExternalTestsDir.getName()),
+                    EasyMock.contains(ExternalLinkedDir.TARGET_LINKED_DIR.toString()),
                     EasyMock.anyObject(),
                     EasyMock.eq("v1"));
             EasyMock.expect(((IDeviceBuildInfo) mMockBuildInfo).getTestsDir())
@@ -1697,7 +1697,10 @@ public class TestInvocationTest extends TestCase {
             assertTrue(tmpTestsDir.listFiles().length == 1);
             // external-tf-dir - the symlink is the original file name + randomized sequence
             assertTrue(
-                    tmpTestsDir.listFiles()[0].getName().startsWith(tmpExternalTestsDir.getName()));
+                    tmpTestsDir
+                            .listFiles()[0]
+                            .getName()
+                            .startsWith(ExternalLinkedDir.TARGET_LINKED_DIR.toString()));
             // testsfile.txt
             assertTrue(tmpTestsDir.listFiles()[0].listFiles().length == 1);
             assertEquals(
@@ -1733,10 +1736,8 @@ public class TestInvocationTest extends TestCase {
                                 }
 
                                 @Override
-                                List<File> getExternalTestCasesDirs() {
-                                    List<File> list = new ArrayList<>();
-                                    list.add(tmpExternalTestsDir);
-                                    return list;
+                                File getExternalTestCasesDirs(EnvVariable envVar) {
+                                    return tmpExternalTestsDir;
                                 }
                             };
                         }
