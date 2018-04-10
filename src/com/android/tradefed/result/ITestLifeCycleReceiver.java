@@ -15,6 +15,10 @@
  */
 package com.android.tradefed.result;
 
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
+
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -60,6 +64,17 @@ public interface ITestLifeCycleReceiver {
      * @param runMetrics key-value pairs reported at the end of a test run
      */
     public default void testRunEnded(long elapsedTimeMillis, Map<String, String> runMetrics) {}
+
+    /**
+     * Reports end of test run. FIXME: We cannot have two Map<> interfaces with different type, so
+     * we have to use HashMap here.
+     *
+     * @param elapsedTimeMillis device reported elapsed time, in milliseconds
+     * @param runMetrics key-value pairs reported at the end of a test run with {@link Metric}.
+     */
+    public default void testRunEnded(long elapsedTimeMillis, HashMap<String, Metric> runMetrics) {
+        testRunEnded(elapsedTimeMillis, TfMetricProtoUtil.compatibleConvert(runMetrics));
+    }
 
     /**
      * Reports test run stopped before completion due to a user request.
@@ -127,6 +142,19 @@ public interface ITestLifeCycleReceiver {
     public default void testEnded(TestDescription test, Map<String, String> testMetrics) {}
 
     /**
+     * Reports the execution end of an individual test case.
+     *
+     * <p>If {@link #testFailed} was not invoked, this test passed. Also returns any key/value
+     * metrics which may have been emitted during the test case's execution.
+     *
+     * @param test identifies the test
+     * @param testMetrics a {@link Map} of the metrics emitted
+     */
+    public default void testEnded(TestDescription test, HashMap<String, Metric> testMetrics) {
+        testEnded(test, TfMetricProtoUtil.compatibleConvert(testMetrics));
+    }
+
+    /**
      * Alternative to {@link #testEnded(TestDescription, Map)} where we can specify the end time
      * directly. Combine with {@link #testStarted(TestDescription, long)} for accurate measure.
      *
@@ -137,5 +165,18 @@ public interface ITestLifeCycleReceiver {
     public default void testEnded(
             TestDescription test, long endTime, Map<String, String> testMetrics) {
         testEnded(test, testMetrics);
+    }
+
+    /**
+     * Alternative to {@link #testEnded(TestDescription, Map)} where we can specify the end time
+     * directly. Combine with {@link #testStarted(TestDescription, long)} for accurate measure.
+     *
+     * @param test identifies the test
+     * @param endTime the time the test ended, measured via {@link System#currentTimeMillis()}
+     * @param testMetrics a {@link Map} of the metrics emitted
+     */
+    public default void testEnded(
+            TestDescription test, long endTime, HashMap<String, Metric> testMetrics) {
+        testEnded(test, endTime, TfMetricProtoUtil.compatibleConvert(testMetrics));
     }
 }

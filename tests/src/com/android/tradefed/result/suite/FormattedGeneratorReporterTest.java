@@ -95,8 +95,8 @@ public class FormattedGeneratorReporterTest {
         mReporter.invocationStarted(mContext);
         mReporter.testRunStarted("run1", 1);
         mReporter.testStarted(new TestDescription("class", "method"));
-        mReporter.testEnded(new TestDescription("class", "method"), new HashMap<>());
-        mReporter.testRunEnded(450L, new HashMap<>());
+        mReporter.testEnded(new TestDescription("class", "method"), new HashMap<String, String>());
+        mReporter.testRunEnded(450L, new HashMap<String, String>());
         mReporter.invocationEnded(500L);
     }
 
@@ -127,8 +127,8 @@ public class FormattedGeneratorReporterTest {
         mReporter.testModuleStarted(moduleContext);
         mReporter.testRunStarted("run1", 1);
         mReporter.testStarted(new TestDescription("class", "method"));
-        mReporter.testEnded(new TestDescription("class", "method"), new HashMap<>());
-        mReporter.testRunEnded(450L, new HashMap<>());
+        mReporter.testEnded(new TestDescription("class", "method"), new HashMap<String, String>());
+        mReporter.testRunEnded(450L, new HashMap<String, String>());
         mReporter.testModuleEnded();
         mReporter.invocationEnded(500L);
     }
