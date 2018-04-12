@@ -30,9 +30,12 @@ import com.android.tradefed.log.ILogRegistry.EventType;
 import com.android.tradefed.log.ITestLogger;
 import com.android.tradefed.log.LogRegistry;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.result.ILogSaver;
+import com.android.tradefed.result.ILogSaverListener;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ITestLoggerReceiver;
+import com.android.tradefed.result.LogFile;
 import com.android.tradefed.result.LogSaverResultForwarder;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.TestResult;
@@ -53,6 +56,7 @@ import com.android.tradefed.testtype.ITestCollector;
 import com.android.tradefed.testtype.suite.module.BaseModuleController;
 import com.android.tradefed.testtype.suite.module.IModuleController.RunStrategy;
 import com.android.tradefed.util.StreamUtil;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -62,9 +66,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Container for the test run configuration. This class is an helper to prepare and run the tests.
@@ -324,9 +330,10 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                 listener.testFailed(testid, sw.toString());
                 listener.testEnded(testid, Collections.emptyMap());
                 listener.testRunFailed(sw.toString());
-                Map<String, String> metrics = new HashMap<>();
-                metrics.put(TEST_TIME, "0");
-                listener.testRunEnded(0, metrics);
+                HashMap<String, Metric> metricsProto = new HashMap<>();
+                metricsProto.put(
+                        TEST_TIME, TfMetricProtoUtil.createSingleValue(0L, "milliseconds"));
+                listener.testRunEnded(0, metricsProto);
                 return;
             }
             mElapsedTest = getCurrentTime();
@@ -373,6 +380,9 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
 
                 ITestInvocationListener runListener =
                         new LogSaverResultForwarder(mLogSaver, currentTestListener);
+                if (failureListener != null) {
+                    failureListener.setLogger(runListener);
+                }
                 if (mRunMetricCollectors != null) {
                     // Module only init the collectors here to avoid triggering the collectors when
                     // replaying the cached events at the end. This ensure metrics are capture at
@@ -475,10 +485,10 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
             int totalExpectedTests,
             List<TestRunResult> listResults) {
         long elapsedTime = 0l;
-        Map<String, String> metrics = new HashMap<>();
+        HashMap<String, Metric> metricsProto = new HashMap<>();
         listener.testRunStarted(getId(), totalExpectedTests);
-
         int numResults = 0;
+        Map<String, LogFile> aggLogFiles = new LinkedHashMap<>();
         for (TestRunResult runResult : listResults) {
             numResults += runResult.getTestResults().size();
             forwardTestResults(runResult.getTestResults(), listener);
@@ -488,12 +498,18 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
             }
             elapsedTime += runResult.getElapsedTime();
             // put metrics from the tests
-            metrics.putAll(runResult.getRunMetrics());
+            metricsProto.putAll(runResult.getRunProtoMetrics());
+            aggLogFiles.putAll(runResult.getRunLoggedFiles());
         }
         // put metrics from the preparation
-        metrics.put(PREPARATION_TIME, Long.toString(mElapsedPreparation));
-        metrics.put(TEAR_DOWN_TIME, Long.toString(mElapsedTearDown));
-        metrics.put(TEST_TIME, Long.toString(elapsedTime));
+        metricsProto.put(
+                PREPARATION_TIME,
+                TfMetricProtoUtil.createSingleValue(mElapsedPreparation, "milliseconds"));
+        metricsProto.put(
+                TEAR_DOWN_TIME,
+                TfMetricProtoUtil.createSingleValue(mElapsedTearDown, "milliseconds"));
+        metricsProto.put(
+                TEST_TIME, TfMetricProtoUtil.createSingleValue(elapsedTime, "milliseconds"));
         if (totalExpectedTests != numResults) {
             String error =
                     String.format(
@@ -503,7 +519,14 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
             CLog.e(error);
             mIsFailedModule = true;
         }
-        listener.testRunEnded(getCurrentTime() - mElapsedTest, metrics);
+
+        // Provide a strong association of the run to its logs.
+        for (Entry<String, LogFile> logFile : aggLogFiles.entrySet()) {
+            if (listener instanceof ILogSaverListener) {
+                ((ILogSaverListener) listener).logAssociation(logFile.getKey(), logFile.getValue());
+            }
+        }
+        listener.testRunEnded(getCurrentTime() - mElapsedTest, metricsProto);
     }
 
     private void forwardTestResults(
@@ -528,10 +551,18 @@ public class ModuleDefinition implements Comparable<ModuleDefinition>, ITestColl
                 default:
                     break;
             }
+            // Provide a strong association of the test to its logs.
+            for (Entry<String, LogFile> logFile :
+                    testEntry.getValue().getLoggedFiles().entrySet()) {
+                if (listener instanceof ILogSaverListener) {
+                    ((ILogSaverListener) listener)
+                            .logAssociation(logFile.getKey(), logFile.getValue());
+                }
+            }
             listener.testEnded(
                     testEntry.getKey(),
                     testEntry.getValue().getEndTime(),
-                    testEntry.getValue().getMetrics());
+                    testEntry.getValue().getProtoMetrics());
         }
     }
 
