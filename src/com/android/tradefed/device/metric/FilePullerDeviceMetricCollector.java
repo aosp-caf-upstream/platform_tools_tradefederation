@@ -19,7 +19,9 @@ import com.android.tradefed.config.Option;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.util.FileUtil;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,13 +58,13 @@ public abstract class FilePullerDeviceMetricCollector extends BaseDeviceMetricCo
 
     @Override
     public void onTestRunEnd(
-            DeviceMetricData runData, final Map<String, String> currentRunMetrics) {
-        processMetricRequest(runData, currentRunMetrics);
+            DeviceMetricData runData, final Map<String, Metric> currentRunMetrics) {
+        processMetricRequest(runData, TfMetricProtoUtil.compatibleConvert(currentRunMetrics));
     }
 
     @Override
-    public void onTestEnd(DeviceMetricData testData, Map<String, String> currentTestCaseMetrics) {
-        processMetricRequest(testData, currentTestCaseMetrics);
+    public void onTestEnd(DeviceMetricData testData, Map<String, Metric> currentTestCaseMetrics) {
+        processMetricRequest(testData, TfMetricProtoUtil.compatibleConvert(currentTestCaseMetrics));
     }
 
     /**
@@ -76,15 +78,15 @@ public abstract class FilePullerDeviceMetricCollector extends BaseDeviceMetricCo
     public abstract void processMetricFile(String key, File metricFile, DeviceMetricData runData);
 
     /**
-     * Implementation of the method should allow to log the directory, parse it for metrics
-     * to be put in
-     * {@link DeviceMetricData}.
+     * Implementation of the method should allow to log the directory, parse it for metrics to be
+     * put in {@link DeviceMetricData}.
      *
      * @param key the option key associated to the directory that was pulled.
      * @param metricDirectory the {@link File} pulled from the device matching the option key.
      * @param runData the run {@link DeviceMetricData} where metrics can be stored.
      */
-    public abstract void processMetricDirectory(String key, File metricDirectory, DeviceMetricData runData);
+    public abstract void processMetricDirectory(
+            String key, File metricDirectory, DeviceMetricData runData);
 
     private void processMetricRequest(DeviceMetricData data, Map<String, String> currentMetrics) {
         if (mKeys.isEmpty() && mDirectoryKeys.isEmpty()) {

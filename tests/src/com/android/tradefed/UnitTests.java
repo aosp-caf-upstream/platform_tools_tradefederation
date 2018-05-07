@@ -110,6 +110,7 @@ import com.android.tradefed.result.InvocationFailureEmailResultReporterTest;
 import com.android.tradefed.result.InvocationToJUnitResultForwarderTest;
 import com.android.tradefed.result.JUnitToInvocationResultForwarderTest;
 import com.android.tradefed.result.LogFileSaverTest;
+import com.android.tradefed.result.LogcatCrashResultForwarderTest;
 import com.android.tradefed.result.MetricsXMLResultReporterTest;
 import com.android.tradefed.result.SnapshotInputStreamSourceTest;
 import com.android.tradefed.result.SubprocessResultsReporterTest;
@@ -157,6 +158,7 @@ import com.android.tradefed.targetprep.SystemUpdaterDeviceFlasherTest;
 import com.android.tradefed.targetprep.TestAppInstallSetupTest;
 import com.android.tradefed.targetprep.TestFilePushSetupTest;
 import com.android.tradefed.targetprep.TimeSetterTargetPreparerTest;
+import com.android.tradefed.targetprep.multi.MergeMultiBuildTargetPreparerTest;
 import com.android.tradefed.targetprep.suite.SuiteApkInstallerTest;
 import com.android.tradefed.testtype.AndroidJUnitTestTest;
 import com.android.tradefed.testtype.CodeCoverageListenerTest;
@@ -178,6 +180,7 @@ import com.android.tradefed.testtype.InstrumentationFileTestTest;
 import com.android.tradefed.testtype.InstrumentationSerialTestTest;
 import com.android.tradefed.testtype.InstrumentationTestTest;
 import com.android.tradefed.testtype.JacocoCodeCoverageTestTest;
+import com.android.tradefed.testtype.JarHostTestTest;
 import com.android.tradefed.testtype.NativeBenchmarkTestParserTest;
 import com.android.tradefed.testtype.NativeBenchmarkTestTest;
 import com.android.tradefed.testtype.NativeStressTestParserTest;
@@ -210,6 +213,7 @@ import com.android.tradefed.testtype.suite.TestMappingSuiteRunnerTest;
 import com.android.tradefed.testtype.suite.TestSuiteInfoTest;
 import com.android.tradefed.testtype.suite.TfSuiteRunnerTest;
 import com.android.tradefed.testtype.suite.ValidateSuiteConfigHelperTest;
+import com.android.tradefed.testtype.suite.module.BaseModuleControllerTest;
 import com.android.tradefed.testtype.testdefs.XmlDefsParserTest;
 import com.android.tradefed.testtype.testdefs.XmlDefsTestTest;
 import com.android.tradefed.util.AaptParserTest;
@@ -402,6 +406,7 @@ import org.junit.runners.Suite.SuiteClasses;
     InvocationFailureEmailResultReporterTest.class,
     InvocationToJUnitResultForwarderTest.class,
     JUnitToInvocationResultForwarderTest.class,
+    LogcatCrashResultForwarderTest.class,
     LogFileSaverTest.class,
     MetricsXMLResultReporterTest.class,
     SnapshotInputStreamSourceTest.class,
@@ -446,6 +451,9 @@ import org.junit.runners.Suite.SuiteClasses;
     TestFilePushSetupTest.class,
     TimeSetterTargetPreparerTest.class,
 
+    // targetprep.multi
+    MergeMultiBuildTargetPreparerTest.class,
+
     // targetprep.suite
     SuiteApkInstallerTest.class,
 
@@ -484,6 +492,7 @@ import org.junit.runners.Suite.SuiteClasses;
     InstrumentationFileTestTest.class,
     InstrumentationTestTest.class,
     JacocoCodeCoverageTestTest.class,
+    JarHostTestTest.class,
     NativeBenchmarkTestParserTest.class,
     NativeBenchmarkTestTest.class,
     NativeStressTestParserTest.class,
@@ -523,6 +532,9 @@ import org.junit.runners.Suite.SuiteClasses;
     TestSuiteInfoTest.class,
     TfSuiteRunnerTest.class,
     ValidateSuiteConfigHelperTest.class,
+
+    // testtype/suite/module
+    BaseModuleControllerTest.class,
 
     // testtype/testdefs
     XmlDefsParserTest.class,
