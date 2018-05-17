@@ -40,6 +40,7 @@ import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.util.Bugreport;
 import com.android.tradefed.util.CommandResult;
+import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.IRunUtil;
 import com.android.tradefed.util.StreamUtil;
@@ -1961,6 +1962,40 @@ public class NativeDeviceTest extends TestCase {
     }
 
     /**
+     * Test that {@link NativeDevice#pullFileContents(String)} returns a string when succeed pulling
+     * the file.
+     */
+    public void testPullFileContents_returnFileSuccess() throws Exception {
+        final String fakeRemotePath = "/test/";
+        mTestDevice = new TestableAndroidNativeDevice() {
+            @Override
+            public boolean pullFile(String remoteFilePath, File localFile)
+                    throws DeviceNotAvailableException {
+                return true;
+            }
+        };
+        String res = mTestDevice.pullFileContents(fakeRemotePath);
+        assertNotNull(res);
+    }
+
+    /**
+     * Test that {@link NativeDevice#pullFileContents(String)} returns null when failed to pull the
+     * file.
+     */
+    public void testPullFileContents_returnNull() throws Exception {
+        final String fakeRemotePath = "/test/";
+        mTestDevice = new TestableAndroidNativeDevice() {
+            @Override
+            public boolean pullFile(String remoteFilePath, File localFile)
+                    throws DeviceNotAvailableException {
+                return false;
+            }
+        };
+        String res = mTestDevice.pullFileContents(fakeRemotePath);
+        assertNull(res);
+    }
+
+    /**
      * Test that {@link NativeDevice#pushFile(File, String)} returns true when the push is
      * successful.
      */
@@ -2159,5 +2194,63 @@ public class NativeDeviceTest extends TestCase {
                 };
 
         assertEquals("legacy", testDevice.getProductVariant());
+    }
+
+    /** Test when {@link NativeDevice#executeShellV2Command(String)} returns a success. */
+    public void testExecuteShellV2Command() throws Exception {
+        CommandResult res = new CommandResult();
+        res.setStatus(CommandStatus.SUCCESS);
+        EasyMock.expect(
+                        mMockRunUtil.runTimedCmd(
+                                100, "adb", "-s", "serial", "shell", "some", "command"))
+                .andReturn(res);
+        EasyMock.replay(mMockRunUtil, mMockIDevice);
+        assertNotNull(mTestDevice.executeShellV2Command("some command"));
+        EasyMock.verify(mMockRunUtil, mMockIDevice);
+    }
+
+    /**
+     * Test when {@link NativeDevice#executeShellV2Command(String, long, TimeUnit, int)} fails and
+     * repeat because of a timeout.
+     */
+    public void testExecuteShellV2Command_timeout() throws Exception {
+        CommandResult res = new CommandResult();
+        res.setStatus(CommandStatus.TIMED_OUT);
+        res.setStderr("timed out");
+        EasyMock.expect(
+                        mMockRunUtil.runTimedCmd(
+                                200L, "adb", "-s", "serial", "shell", "some", "command"))
+                .andReturn(res)
+                .times(2);
+        EasyMock.replay(mMockRunUtil, mMockIDevice);
+        try {
+            mTestDevice.executeShellV2Command("some command", 200L, TimeUnit.MILLISECONDS, 1);
+            fail("Should have thrown an exception.");
+        } catch (DeviceUnresponsiveException e) {
+            // expected
+        }
+        EasyMock.verify(mMockRunUtil, mMockIDevice);
+    }
+
+    /**
+     * Test when {@link NativeDevice#executeShellV2Command(String, long, TimeUnit, int)} fails and
+     * output.
+     */
+    public void testExecuteShellV2Command_fail() throws Exception {
+        CommandResult res = new CommandResult();
+        res.setStatus(CommandStatus.FAILED);
+        res.setStderr("timed out");
+        EasyMock.expect(
+                        mMockRunUtil.runTimedCmd(
+                                200L, "adb", "-s", "serial", "shell", "some", "command"))
+                .andReturn(res)
+                .times(1);
+        EasyMock.replay(mMockRunUtil, mMockIDevice);
+        CommandResult result =
+                mTestDevice.executeShellV2Command("some command", 200L, TimeUnit.MILLISECONDS, 1);
+        assertNotNull(result);
+        // The final result is what RunUtil returned, so it contains full status information.
+        assertSame(res, result);
+        EasyMock.verify(mMockRunUtil, mMockIDevice);
     }
 }
