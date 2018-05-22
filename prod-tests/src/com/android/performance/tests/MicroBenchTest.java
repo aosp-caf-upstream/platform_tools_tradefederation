@@ -21,6 +21,7 @@ import com.android.tradefed.config.Option.Importance;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.testtype.IDeviceTest;
@@ -30,13 +31,13 @@ import com.android.tradefed.util.SimplePerfStatResultParser;
 import com.android.tradefed.util.SimplePerfUtil;
 import com.android.tradefed.util.SimplePerfUtil.SimplePerfType;
 import com.android.tradefed.util.SimpleStats;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import org.junit.Assert;
 
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -312,8 +313,7 @@ public class MicroBenchTest implements IDeviceTest, IRemoteTest {
                 listener.testFailed(testId,
                         "Iteration count mismatch (see host log).");
             }
-            Map<String, String> emptyMap = Collections.emptyMap();
-            listener.testEnded(testId, emptyMap);
+            listener.testEnded(testId, new HashMap<String, Metric>());
         }
 
         /**
@@ -450,7 +450,9 @@ public class MicroBenchTest implements IDeviceTest, IRemoteTest {
             for (TestCase test : testCases) {
                 test.runTest(listener, metrics);
             }
-            listener.testRunEnded((System.currentTimeMillis() - beginTime), metrics);
+            listener.testRunEnded(
+                    (System.currentTimeMillis() - beginTime),
+                    TfMetricProtoUtil.upgradeConvert(metrics));
         }
 
         if (mStopFramework) {

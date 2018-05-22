@@ -21,6 +21,9 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := tradefed-protos
 LOCAL_SRC_FILES := $(call all-proto-files-under, proto)
 LOCAL_JAVA_LIBRARIES := host-libprotobuf-java-full
+LOCAL_PROTOC_OPTIMIZE_TYPE := full
+LOCAL_PROTOC_FLAGS := \
+    -Iexternal/protobuf/src
 LOCAL_SOURCE_FILES_ALL_GENERATED := true
 LOCAL_MODULE_TAGS := optional
 
@@ -49,11 +52,11 @@ endif
 
 LOCAL_MODULE := tradefed
 
-LOCAL_STATIC_JAVA_LIBRARIES := junit-host junit-params-host kxml2-2.3.0 jline-1.0 tf-remote-client commons-compress-prebuilt host-libprotobuf-java-full tradefed-protos error_prone_annotations-2.0.18 longevity-host-lib
+LOCAL_STATIC_JAVA_LIBRARIES := junit-host junit-params-host kxml2-2.3.0 jline-1.0 tf-remote-client commons-compress-prebuilt host-libprotobuf-java-full tradefed-protos error_prone_annotations-2.0.18 longevity-host-lib gson-prebuilt-jar
 
 # emmalib is only a runtime dependency if generating code coverage reporters,
 # not a compile time dependency
-LOCAL_JAVA_LIBRARIES := emmalib jack-jacoco-reporter loganalysis tools-common-prebuilt
+LOCAL_JAVA_LIBRARIES := loganalysis tools-common-prebuilt
 
 LOCAL_JAR_MANIFEST := MANIFEST.mf
 
