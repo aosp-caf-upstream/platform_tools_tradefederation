@@ -17,17 +17,18 @@ package com.android.performance.tests;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.testtype.IDeviceTest;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.util.RunUtil;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -158,7 +159,7 @@ public class VellamoBenchmark implements IDeviceTest, IRemoteTest {
         long durationMs = System.currentTimeMillis() - testStartTime;
         metrics.put("total", Double.toString(sumScore));
         CLog.i("total :: %f", sumScore);
-        listener.testEnded(testId, Collections.<String, String>emptyMap());
-        listener.testRunEnded(durationMs, metrics);
+        listener.testEnded(testId, new HashMap<String, Metric>());
+        listener.testRunEnded(durationMs, TfMetricProtoUtil.upgradeConvert(metrics));
     }
 }
