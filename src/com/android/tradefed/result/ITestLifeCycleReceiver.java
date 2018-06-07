@@ -63,7 +63,9 @@ public interface ITestLifeCycleReceiver {
      * @param elapsedTimeMillis device reported elapsed time, in milliseconds
      * @param runMetrics key-value pairs reported at the end of a test run
      */
-    public default void testRunEnded(long elapsedTimeMillis, Map<String, String> runMetrics) {}
+    public default void testRunEnded(long elapsedTimeMillis, Map<String, String> runMetrics) {
+        testRunEnded(elapsedTimeMillis, TfMetricProtoUtil.upgradeConvert(runMetrics));
+    }
 
     /**
      * Reports end of test run. FIXME: We cannot have two Map<> interfaces with different type, so
@@ -72,9 +74,7 @@ public interface ITestLifeCycleReceiver {
      * @param elapsedTimeMillis device reported elapsed time, in milliseconds
      * @param runMetrics key-value pairs reported at the end of a test run with {@link Metric}.
      */
-    public default void testRunEnded(long elapsedTimeMillis, HashMap<String, Metric> runMetrics) {
-        testRunEnded(elapsedTimeMillis, TfMetricProtoUtil.compatibleConvert(runMetrics));
-    }
+    public default void testRunEnded(long elapsedTimeMillis, HashMap<String, Metric> runMetrics) {}
 
     /**
      * Reports test run stopped before completion due to a user request.
@@ -139,7 +139,9 @@ public interface ITestLifeCycleReceiver {
      * @param test identifies the test
      * @param testMetrics a {@link Map} of the metrics emitted
      */
-    public default void testEnded(TestDescription test, Map<String, String> testMetrics) {}
+    public default void testEnded(TestDescription test, Map<String, String> testMetrics) {
+        testEnded(test, TfMetricProtoUtil.upgradeConvert(testMetrics));
+    }
 
     /**
      * Reports the execution end of an individual test case.
@@ -150,9 +152,7 @@ public interface ITestLifeCycleReceiver {
      * @param test identifies the test
      * @param testMetrics a {@link Map} of the metrics emitted
      */
-    public default void testEnded(TestDescription test, HashMap<String, Metric> testMetrics) {
-        testEnded(test, TfMetricProtoUtil.compatibleConvert(testMetrics));
-    }
+    public default void testEnded(TestDescription test, HashMap<String, Metric> testMetrics) {}
 
     /**
      * Alternative to {@link #testEnded(TestDescription, Map)} where we can specify the end time
@@ -164,7 +164,7 @@ public interface ITestLifeCycleReceiver {
      */
     public default void testEnded(
             TestDescription test, long endTime, Map<String, String> testMetrics) {
-        testEnded(test, testMetrics);
+        testEnded(test, endTime, TfMetricProtoUtil.upgradeConvert(testMetrics));
     }
 
     /**
@@ -177,6 +177,6 @@ public interface ITestLifeCycleReceiver {
      */
     public default void testEnded(
             TestDescription test, long endTime, HashMap<String, Metric> testMetrics) {
-        testEnded(test, endTime, TfMetricProtoUtil.compatibleConvert(testMetrics));
+        testEnded(test, testMetrics);
     }
 }

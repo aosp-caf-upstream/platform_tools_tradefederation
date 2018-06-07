@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Special listener: on failures (instrumentation process crashing) it will attempt to extract from
@@ -62,13 +61,6 @@ public class LogcatCrashResultForwarder extends ResultForwarder {
     }
 
     @Override
-    public void testEnded(TestDescription test, long endTime, Map<String, String> testMetrics) {
-        super.testEnded(test, endTime, testMetrics);
-        mLastStartTime = mStartTime;
-        mStartTime = null;
-    }
-
-    @Override
     public void testEnded(TestDescription test, long endTime, HashMap<String, Metric> testMetrics) {
         super.testEnded(test, endTime, testMetrics);
         mLastStartTime = mStartTime;
@@ -88,12 +80,6 @@ public class LogcatCrashResultForwarder extends ResultForwarder {
         errorMessage = extractCrashAndAddToMessage(errorMessage, mLastStartTime);
         super.testRunFailed(errorMessage);
         mLogcatItem = null;
-    }
-
-    @Override
-    public void testRunEnded(long elapsedTime, Map<String, String> runMetrics) {
-        super.testRunEnded(elapsedTime, runMetrics);
-        mLastStartTime = null;
     }
 
     @Override
