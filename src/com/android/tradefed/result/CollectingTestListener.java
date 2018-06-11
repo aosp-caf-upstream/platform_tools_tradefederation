@@ -20,6 +20,7 @@ import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.config.Option;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -173,7 +174,19 @@ public class CollectingTestListener implements ITestInvocationListener, ILogSave
 
     /** {@inheritDoc} */
     @Override
+    public void testEnded(TestDescription test, HashMap<String, Metric> testMetrics) {
+        testEnded(test, System.currentTimeMillis(), testMetrics);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public void testEnded(TestDescription test, long endTime, Map<String, String> testMetrics) {
+        testEnded(test, endTime, TfMetricProtoUtil.upgradeConvert(testMetrics));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void testEnded(TestDescription test, long endTime, HashMap<String, Metric> testMetrics) {
         mIsCountDirty = true;
         mCurrentResults.testEnded(test, endTime, testMetrics);
     }
@@ -203,8 +216,7 @@ public class CollectingTestListener implements ITestInvocationListener, ILogSave
      */
     @Override
     public void testRunEnded(long elapsedTime, Map<String, String> runMetrics) {
-        mIsCountDirty = true;
-        mCurrentResults.testRunEnded(elapsedTime, runMetrics);
+        testRunEnded(elapsedTime, TfMetricProtoUtil.upgradeConvert(runMetrics));
     }
 
     /** {@inheritDoc} */

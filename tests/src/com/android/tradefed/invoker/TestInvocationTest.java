@@ -50,6 +50,7 @@ import com.android.tradefed.device.TestDeviceOptions;
 import com.android.tradefed.device.metric.BaseDeviceMetricCollector;
 import com.android.tradefed.device.metric.DeviceMetricData;
 import com.android.tradefed.device.metric.IMetricCollector;
+import com.android.tradefed.guice.InvocationScope;
 import com.android.tradefed.invoker.shard.IShardHelper;
 import com.android.tradefed.invoker.shard.ShardHelper;
 import com.android.tradefed.invoker.shard.StrictShardHelper;
@@ -96,6 +97,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -244,6 +246,12 @@ public class TestInvocationTest extends TestCase {
                     @Override
                     protected void setExitCode(ExitCode code, Throwable stack) {
                         // empty on purpose
+                    }
+
+                    @Override
+                    InvocationScope getInvocationScope() {
+                        // Avoid re-entry in the current TF invocation scope for unit tests.
+                        return new InvocationScope();
                     }
                 };
     }
@@ -862,6 +870,12 @@ public class TestInvocationTest extends TestCase {
                     protected void setExitCode(ExitCode code, Throwable stack) {
                         // empty on purpose
                     }
+
+                    @Override
+                    InvocationScope getInvocationScope() {
+                        // Avoid re-entry in the current TF invocation scope for unit tests.
+                        return new InvocationScope();
+                    }
                 };
         String[] commandLine = {"config", "arg"};
         int shardCount = 10;
@@ -945,6 +959,12 @@ public class TestInvocationTest extends TestCase {
                     @Override
                     protected void setExitCode(ExitCode code, Throwable stack) {
                         // empty on purpose
+                    }
+
+                    @Override
+                    InvocationScope getInvocationScope() {
+                        // Avoid re-entry in the current TF invocation scope for unit tests.
+                        return new InvocationScope();
                     }
                 };
         String[] commandLine = {"config", "arg"};
@@ -1612,6 +1632,12 @@ public class TestInvocationTest extends TestCase {
                     protected void setExitCode(ExitCode code, Throwable stack) {
                         // empty on purpose
                     }
+
+                    @Override
+                    InvocationScope getInvocationScope() {
+                        // Avoid re-entry in the current TF invocation scope for unit tests.
+                        return new InvocationScope();
+                    }
                 };
         mMockBuildInfo = EasyMock.createMock(IDeviceBuildInfo.class);
         EasyMock.expect(mMockBuildInfo.getProperties()).andStubReturn(new HashSet<>());
@@ -1675,6 +1701,12 @@ public class TestInvocationTest extends TestCase {
                         @Override
                         protected void setExitCode(ExitCode code, Throwable stack) {
                             // empty on purpose
+                        }
+
+                        @Override
+                        InvocationScope getInvocationScope() {
+                            // Avoid re-entry in the current TF invocation scope for unit tests.
+                            return new InvocationScope();
                         }
                     };
             mMockBuildInfo = EasyMock.createMock(IDeviceBuildInfo.class);
@@ -1753,6 +1785,12 @@ public class TestInvocationTest extends TestCase {
                         protected void setExitCode(ExitCode code, Throwable stack) {
                             // empty on purpose
                         }
+
+                        @Override
+                        InvocationScope getInvocationScope() {
+                            // Avoid re-entry in the current TF invocation scope for unit tests.
+                            return new InvocationScope();
+                        }
                     };
             mMockBuildInfo = EasyMock.createMock(IDeviceBuildInfo.class);
             IRemoteTest test = EasyMock.createNiceMock(IRemoteTest.class);
@@ -1825,8 +1863,10 @@ public class TestInvocationTest extends TestCase {
         TestDescription testId = new TestDescription("StubTest", "StubMethod");
         mMockTestListener.testStarted(EasyMock.eq(testId), EasyMock.anyLong());
         mMockTestListener.testEnded(
-                EasyMock.eq(testId), EasyMock.anyLong(), EasyMock.eq(Collections.emptyMap()));
-        Capture<Map<String, String>> captured = new Capture<>();
+                EasyMock.eq(testId),
+                EasyMock.anyLong(),
+                EasyMock.eq(new HashMap<String, Metric>()));
+        Capture<HashMap<String, Metric>> captured = new Capture<>();
         mMockTestListener.testRunEnded(EasyMock.anyLong(), EasyMock.capture(captured));
         EasyMock.replay(mMockTestListener);
         new InvocationExecution()

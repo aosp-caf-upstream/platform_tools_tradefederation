@@ -74,6 +74,7 @@ import com.android.tradefed.device.metric.BugreportzMetricCollectorTest;
 import com.android.tradefed.device.metric.DeviceMetricDataTest;
 import com.android.tradefed.device.metric.DumpHeapCollectorTest;
 import com.android.tradefed.device.metric.FilePullerDeviceMetricCollectorTest;
+import com.android.tradefed.device.metric.FilePullerLogCollectorTest;
 import com.android.tradefed.device.metric.GraphicsStatsMetricCollectorTest;
 import com.android.tradefed.device.metric.IonHeapInfoMetricCollectorTest;
 import com.android.tradefed.device.metric.MemInfoMetricCollectorTest;
@@ -83,6 +84,7 @@ import com.android.tradefed.device.metric.ScheduleMultipleDeviceMetricCollectorT
 import com.android.tradefed.device.metric.ScheduledDeviceMetricCollectorTest;
 import com.android.tradefed.device.metric.TemperatureCollectorTest;
 import com.android.tradefed.device.metric.TraceMetricCollectorTest;
+import com.android.tradefed.guice.InvocationScopeTest;
 import com.android.tradefed.invoker.InvocationContextTest;
 import com.android.tradefed.invoker.InvocationExecutionTest;
 import com.android.tradefed.invoker.SandboxedInvocationExecutionTest;
@@ -168,7 +170,6 @@ import com.android.tradefed.testtype.DeviceSuiteTest;
 import com.android.tradefed.testtype.DeviceTestCaseTest;
 import com.android.tradefed.testtype.DeviceTestSuiteTest;
 import com.android.tradefed.testtype.FakeTestTest;
-import com.android.tradefed.testtype.GranularRetriableTestWrapperTest;
 import com.android.tradefed.testtype.GTestListTestParserTest;
 import com.android.tradefed.testtype.GTestResultParserTest;
 import com.android.tradefed.testtype.GTestTest;
@@ -200,6 +201,7 @@ import com.android.tradefed.testtype.metricregression.MetricsTest;
 import com.android.tradefed.testtype.python.PythonBinaryHostTestTest;
 import com.android.tradefed.testtype.suite.AtestRunnerTest;
 import com.android.tradefed.testtype.suite.BaseTestSuiteTest;
+import com.android.tradefed.testtype.suite.GranularRetriableTestWrapperTest;
 import com.android.tradefed.testtype.suite.ITestSuiteIntegrationTest;
 import com.android.tradefed.testtype.suite.ITestSuiteMultiTest;
 import com.android.tradefed.testtype.suite.ITestSuiteTest;
@@ -215,6 +217,7 @@ import com.android.tradefed.testtype.suite.TestSuiteInfoTest;
 import com.android.tradefed.testtype.suite.TfSuiteRunnerTest;
 import com.android.tradefed.testtype.suite.ValidateSuiteConfigHelperTest;
 import com.android.tradefed.testtype.suite.module.BaseModuleControllerTest;
+import com.android.tradefed.testtype.suite.module.NativeBridgeModuleControllerTest;
 import com.android.tradefed.testtype.testdefs.XmlDefsParserTest;
 import com.android.tradefed.testtype.testdefs.XmlDefsTestTest;
 import com.android.tradefed.util.AaptParserTest;
@@ -364,6 +367,7 @@ import org.junit.runners.Suite.SuiteClasses;
     DeviceMetricDataTest.class,
     DumpHeapCollectorTest.class,
     FilePullerDeviceMetricCollectorTest.class,
+    FilePullerLogCollectorTest.class,
     GraphicsStatsMetricCollectorTest.class,
     IonHeapInfoMetricCollectorTest.class,
     MemInfoMetricCollectorTest.class,
@@ -373,6 +377,9 @@ import org.junit.runners.Suite.SuiteClasses;
     ScheduleMultipleDeviceMetricCollectorTest.class,
     TemperatureCollectorTest.class,
     TraceMetricCollectorTest.class,
+
+    // Guice
+    InvocationScopeTest.class,
 
     // invoker
     InvocationContextTest.class,
@@ -484,7 +491,6 @@ import org.junit.runners.Suite.SuiteClasses;
     FakeTestTest.class,
     GoogleBenchmarkResultParserTest.class,
     GoogleBenchmarkTestTest.class,
-    GranularRetriableTestWrapperTest.class,
     GTestListTestParserTest.class,
     GTestResultParserTest.class,
     GTestTest.class,
@@ -521,6 +527,7 @@ import org.junit.runners.Suite.SuiteClasses;
     // testtype/suite
     AtestRunnerTest.class,
     BaseTestSuiteTest.class,
+    GranularRetriableTestWrapperTest.class,
     ITestSuiteIntegrationTest.class,
     ITestSuiteMultiTest.class,
     ITestSuiteTest.class,
@@ -538,6 +545,7 @@ import org.junit.runners.Suite.SuiteClasses;
 
     // testtype/suite/module
     BaseModuleControllerTest.class,
+    NativeBridgeModuleControllerTest.class,
 
     // testtype/testdefs
     XmlDefsParserTest.class,

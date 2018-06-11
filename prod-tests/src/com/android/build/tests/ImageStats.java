@@ -22,10 +22,12 @@ import com.android.tradefed.config.Option;
 import com.android.tradefed.config.OptionClass;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.testtype.IBuildReceiver;
 import com.android.tradefed.testtype.IRemoteTest;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -33,7 +35,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -121,10 +122,10 @@ public class ImageStats implements IRemoteTest, IBuildReceiver {
                 CLog.e(message);
                 CLog.e(ioe);
                 listener.testFailed(td, ioe.toString());
-                listener.testEnded(td, Collections.emptyMap());
+                listener.testEnded(td, new HashMap<String, Metric>());
                 listener.testRunFailed(message);
-                listener.testRunEnded(System.currentTimeMillis() - start,
-                        Collections.emptyMap());
+                listener.testRunEnded(
+                        System.currentTimeMillis() - start, new HashMap<String, Metric>());
                 throw new RuntimeException(message, ioe);
             }
             String logOutput = String.format("File sizes: %s", fileSizes.toString());
@@ -134,10 +135,9 @@ public class ImageStats implements IRemoteTest, IBuildReceiver {
                 // assume local debug, print outloud
                 CLog.logAndDisplay(Log.LogLevel.VERBOSE, logOutput);
             }
-            listener.testEnded(td, fileSizes);
+            listener.testEnded(td, TfMetricProtoUtil.upgradeConvert(fileSizes));
         }
-        listener.testRunEnded(System.currentTimeMillis() - start,
-                Collections.emptyMap());
+        listener.testRunEnded(System.currentTimeMillis() - start, new HashMap<String, Metric>());
     }
 
     /**

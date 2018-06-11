@@ -32,12 +32,16 @@ import com.android.tradefed.device.metric.IMetricCollector;
 import com.android.tradefed.device.metric.IMetricCollectorReceiver;
 import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.ITestLoggerReceiver;
 import com.android.tradefed.result.InputStreamSource;
 import com.android.tradefed.result.LogDataType;
+import com.android.tradefed.result.ResultForwarder;
 import com.android.tradefed.suite.checker.ISystemStatusChecker;
 import com.android.tradefed.suite.checker.ISystemStatusCheckerReceiver;
+import com.android.tradefed.suite.checker.StatusCheckerResult;
+import com.android.tradefed.suite.checker.StatusCheckerResult.CheckStatus;
 import com.android.tradefed.targetprep.ITargetPreparer;
 import com.android.tradefed.testtype.Abi;
 import com.android.tradefed.testtype.IAbi;
@@ -57,7 +61,7 @@ import com.android.tradefed.util.TimeUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -173,7 +177,7 @@ public abstract class ITestSuite
         name = PRIMARY_ABI_RUN,
         description =
                 "Whether to run tests with only the device primary abi. "
-                        + "This will override the --abi option."
+                        + "This is overriden by the --abi option."
     )
     private boolean mPrimaryAbiRun = false;
 
@@ -419,8 +423,14 @@ public abstract class ITestSuite
                                 .addDeviceBuildInfo(deviceName, mContext.getBuildInfo(deviceName));
                     }
                     listener.testModuleStarted(module.getModuleInvocationContext());
+                    // Trigger module start on module level listener too
+                    new ResultForwarder(moduleListeners)
+                            .testModuleStarted(module.getModuleInvocationContext());
+
                     runSingleModule(module, listener, moduleListeners, failureListener);
                 } finally {
+                    // Trigger module end on module level listener too
+                    new ResultForwarder(moduleListeners).testModuleEnded();
                     // clear out module invocation context since we are now done with module
                     // execution
                     listener.testModuleEnded();
@@ -433,7 +443,7 @@ public abstract class ITestSuite
             for (ModuleDefinition module : runModules) {
                 listener.testRunStarted(module.getId(), 0);
                 listener.testRunFailed("Module did not run due to device not available.");
-                listener.testRunEnded(0, Collections.emptyMap());
+                listener.testRunEnded(0, new HashMap<String, Metric>());
             }
             throw e;
         }
@@ -505,7 +515,7 @@ public abstract class ITestSuite
             throws DeviceNotAvailableException {
         long startTime = System.currentTimeMillis();
         CLog.i("Running system status checker before module execution: %s", moduleName);
-        List<String> failures = new ArrayList<>();
+        Map<String, String> failures = new LinkedHashMap<>();
         for (ISystemStatusChecker checker : checkers) {
             // Check if the status checker should be skipped.
             if (mSystemStatusCheckBlacklist.contains(checker.getClass().getName())) {
@@ -515,10 +525,12 @@ public abstract class ITestSuite
                 continue;
             }
 
-            boolean result = checker.preExecutionCheck(device);
-            if (!result) {
-                failures.add(checker.getClass().getCanonicalName());
-                CLog.w("System status checker [%s] failed", checker.getClass().getCanonicalName());
+            StatusCheckerResult result = checker.preExecutionCheck(device);
+            if (!CheckStatus.SUCCESS.equals(result.getStatus())) {
+                String errorMessage =
+                        (result.getErrorMessage() == null) ? "" : result.getErrorMessage();
+                failures.put(checker.getClass().getCanonicalName(), errorMessage);
+                CLog.w("System status checker [%s] failed.", checker.getClass().getCanonicalName());
             }
         }
         if (!failures.isEmpty()) {
@@ -548,16 +560,18 @@ public abstract class ITestSuite
             throws DeviceNotAvailableException {
         long startTime = System.currentTimeMillis();
         CLog.i("Running system status checker after module execution: %s", moduleName);
-        List<String> failures = new ArrayList<>();
+        Map<String, String> failures = new LinkedHashMap<>();
         for (ISystemStatusChecker checker : checkers) {
             // Check if the status checker should be skipped.
             if (mSystemStatusCheckBlacklist.contains(checker.getClass().getName())) {
                 continue;
             }
 
-            boolean result = checker.postExecutionCheck(device);
-            if (!result) {
-                failures.add(checker.getClass().getCanonicalName());
+            StatusCheckerResult result = checker.postExecutionCheck(device);
+            if (!CheckStatus.SUCCESS.equals(result.getStatus())) {
+                String errorMessage =
+                        (result.getErrorMessage() == null) ? "" : result.getErrorMessage();
+                failures.put(checker.getClass().getCanonicalName(), errorMessage);
                 CLog.w("System status checker [%s] failed", checker.getClass().getCanonicalName());
             }
         }
@@ -580,7 +594,7 @@ public abstract class ITestSuite
     private void reportModuleCheckerResult(
             String identifier,
             String moduleName,
-            List<String> failures,
+            Map<String, String> failures,
             long startTime,
             ITestInvocationListener listener) {
         if (!mReportSystemChecker) {
@@ -592,7 +606,8 @@ public abstract class ITestSuite
         if (!failures.isEmpty()) {
             listener.testRunFailed(String.format("%s failed '%s' checkers", moduleName, failures));
         }
-        listener.testRunEnded(System.currentTimeMillis() - startTime, Collections.emptyMap());
+        listener.testRunEnded(
+                System.currentTimeMillis() - startTime, new HashMap<String, Metric>());
     }
 
     /** {@inheritDoc} */
