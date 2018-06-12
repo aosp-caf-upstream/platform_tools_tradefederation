@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A {@link ITestInvocationListener} that forwards invocation results to a list of other listeners.
@@ -196,21 +195,6 @@ public class ResultForwarder implements ITestInvocationListener {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void testRunEnded(long elapsedTime, Map<String, String> runMetrics) {
-        for (ITestInvocationListener listener : mListeners) {
-            try {
-                listener.testRunEnded(elapsedTime, runMetrics);
-            } catch (RuntimeException e) {
-                CLog.e("Exception while invoking %s#testRunEnded", listener.getClass().getName());
-                CLog.e(e);
-            }
-        }
-    }
-
     /** {@inheritDoc} */
     @Override
     public void testRunEnded(long elapsedTime, HashMap<String, Metric> runMetrics) {
@@ -251,25 +235,6 @@ public class ResultForwarder implements ITestInvocationListener {
                 listener.testFailed(test, trace);
             } catch (RuntimeException e) {
                 CLog.e("Exception while invoking %s#testFailed", listener.getClass().getName());
-                CLog.e(e);
-            }
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void testEnded(TestDescription test, Map<String, String> testMetrics) {
-        testEnded(test, System.currentTimeMillis(), testMetrics);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void testEnded(TestDescription test, long endTime, Map<String, String> testMetrics) {
-        for (ITestInvocationListener listener : mListeners) {
-            try {
-                listener.testEnded(test, endTime, testMetrics);
-            } catch (RuntimeException e) {
-                CLog.e("Exception while invoking %s#testEnded", listener.getClass().getName());
                 CLog.e(e);
             }
         }

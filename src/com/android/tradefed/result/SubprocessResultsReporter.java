@@ -44,7 +44,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Implements {@link ITestInvocationListener} to be specified as a result_reporter and forward from
@@ -74,18 +73,6 @@ public class SubprocessResultsReporter
         FailedTestEventInfo info =
                 new FailedTestEventInfo(testId.getClassName(), testId.getTestName(), trace);
         printEvent(SubprocessTestResultsParser.StatusKeys.TEST_ASSUMPTION_FAILURE, info);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void testEnded(TestDescription testId, Map<String, String> metrics) {
-        testEnded(testId, System.currentTimeMillis(), metrics);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void testEnded(TestDescription testId, long endTime, Map<String, String> metrics) {
-        testEnded(testId, endTime, TfMetricProtoUtil.upgradeConvert(metrics));
     }
 
     /** {@inheritDoc} */
@@ -120,14 +107,6 @@ public class SubprocessResultsReporter
     public void testIgnored(TestDescription testId) {
         BaseTestEventInfo info = new BaseTestEventInfo(testId.getClassName(), testId.getTestName());
         printEvent(SubprocessTestResultsParser.StatusKeys.TEST_IGNORED, info);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void testRunEnded(long time, Map<String, String> runMetrics) {
-        testRunEnded(time, TfMetricProtoUtil.upgradeConvert(runMetrics));
     }
 
     /** {@inheritDoc} */
@@ -187,7 +166,7 @@ public class SubprocessResultsReporter
     /** {@inheritDoc} */
     @Override
     public void testLog(String dataName, LogDataType dataType, InputStreamSource dataStream) {
-        if (!mOutputTestlog && (mReportPort == null && mReportFile == null)) {
+        if (!mOutputTestlog || (mReportPort == null && mReportFile == null)) {
             return;
         }
         if (dataStream != null && dataStream.size() != 0) {
