@@ -16,10 +16,11 @@
 package com.android.tradefed.result;
 
 import com.android.tradefed.invoker.IInvocationContext;
+import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
+import com.android.tradefed.util.proto.TfMetricProtoUtil;
 
 import junit.framework.TestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,7 +28,7 @@ import java.util.Map;
  * Unit tests for {@link ConsoleResultReporter}
  */
 public class ConsoleResultReporterTest extends TestCase {
-    private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
+    private static final HashMap<String, Metric> EMPTY_MAP = new HashMap<>();
     // Regex to match the TestResult run time format, examples: (10ms)  (5ms)
     private static final String RUN_TIME_MS_REGEX = "\\((\\d+)ms\\)";
 
@@ -53,7 +54,7 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> metrics = new HashMap<>();
         metrics.put("key2", "value2");
         metrics.put("key1", "value1");
-        reporter.testRunEnded(0, metrics);
+        reporter.testRunEnded(0, TfMetricProtoUtil.upgradeConvert(metrics));
         reporter.invocationEnded(0);
         assertEquals(
                 "Test results:\n" +
@@ -76,8 +77,8 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> metrics = new HashMap<>();
         metrics.put("key2", "value2");
         metrics.put("key1", "value1");
-        reporter.testEnded(testId, metrics);
-        reporter.testRunEnded(0, EMPTY_MAP);
+        reporter.testEnded(testId, TfMetricProtoUtil.upgradeConvert(metrics));
+        reporter.testRunEnded(0, new HashMap<String, Metric>());
         reporter.invocationEnded(0);
 
         StringBuilder expected = new StringBuilder();
@@ -127,14 +128,14 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> run1Test1Metrics = new HashMap<>();
         run1Test1Metrics.put("run1_test1_key1", "run1_test1_value1");
         run1Test1Metrics.put("run1_test1_key2", "run1_test1_value2");
-        reporter.testEnded(run1test1Id, run1Test1Metrics);
+        reporter.testEnded(run1test1Id, TfMetricProtoUtil.upgradeConvert(run1Test1Metrics));
 
         TestDescription run1test2Id = new TestDescription("class1", "method2");
         reporter.testStarted(run1test2Id);
         Map<String, String> run1Test2Metrics = new HashMap<>();
         run1Test2Metrics.put("run1_test2_key1", "run1_test2_value1");
         run1Test2Metrics.put("run1_test2_key2", "run1_test2_value2");
-        reporter.testEnded(run1test2Id, run1Test2Metrics);
+        reporter.testEnded(run1test2Id, TfMetricProtoUtil.upgradeConvert(run1Test2Metrics));
 
         TestDescription run1test3Id = new TestDescription("class1", "method3");
         reporter.testStarted(run1test3Id);
@@ -142,7 +143,7 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> run1Test3Metrics = new HashMap<>();
         run1Test3Metrics.put("run1_test3_key1", "run1_test3_value1");
         run1Test3Metrics.put("run1_test3_key2", "run1_test3_value2");
-        reporter.testEnded(run1test3Id, run1Test3Metrics);
+        reporter.testEnded(run1test3Id, TfMetricProtoUtil.upgradeConvert(run1Test3Metrics));
 
         TestDescription run1test4Id = new TestDescription("class1", "method4");
         reporter.testStarted(run1test4Id);
@@ -152,7 +153,7 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> run1Metrics = new HashMap<>();
         run1Metrics.put("run1_key1", "run1_value2");
         run1Metrics.put("run1_key2", "run1_value1");
-        reporter.testRunEnded(0, run1Metrics);
+        reporter.testRunEnded(0, TfMetricProtoUtil.upgradeConvert(run1Metrics));
 
         reporter.testRunStarted("Test Run 2", 4);
         TestDescription run2test1Id = new TestDescription("class2", "method1");
@@ -179,7 +180,7 @@ public class ConsoleResultReporterTest extends TestCase {
         Map<String, String> run3Metrics = new HashMap<>();
         run3Metrics.put("run3_key1", "run3_value1");
         run3Metrics.put("run3_key2", "run3_value2");
-        reporter.testRunEnded(0, run3Metrics);
+        reporter.testRunEnded(0, TfMetricProtoUtil.upgradeConvert(run3Metrics));
 
         reporter.testRunStarted("Test Run 4", 0);
         reporter.testRunEnded(0, EMPTY_MAP);
